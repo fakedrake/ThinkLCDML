@@ -37,18 +37,19 @@
 // RECEIVER   :
 // NOTES      :
 
-#include <linux/module.h>
-#include <linux/kernel.h>
-#include <linux/errno.h>
-#include <linux/string.h>
-#include <linux/mm.h>
-#include <linux/tty.h>
-#include <linux/slab.h>
 #include <linux/delay.h>
+#include <linux/dma-mapping.h>
+#include <linux/errno.h>
 #include <linux/fb.h>
 #include <linux/init.h>
 #include <linux/irq.h>
+#include <linux/kernel.h>
+#include <linux/mm.h>
+#include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/slab.h>
+#include <linux/string.h>
+#include <linux/tty.h>
 
 #include "thinklcdml.h"
 
@@ -107,6 +108,7 @@ struct thinklcdml_par {
 
     u32 pseudo_palette[TLCD_PALETTE_COLORS];
     u32 mode;
+    dma_addr_t dma_handle;
 
     wait_queue_head_t wait_vsync;
     volatile u64 vblank_count;
@@ -177,15 +179,15 @@ static struct fb_var_screeninfo m1024x768 __initdata = {
 };
 
 static struct fb_fix_screeninfo thinklcdml_fix __initdata = {
-    .id =			"TSi ThinkLCDML",
-    .type =			FB_TYPE_PACKED_PIXELS,
-    .xpanstep =		1,
-    .ypanstep =		1,
-    .ywrapstep =		0,
-    .accel =		TLCD_ACCEL,
+    .id	       = "TSi ThinkLCDML",
+    .type      = FB_TYPE_PACKED_PIXELS,
+    .xpanstep  = 1,
+    .ypanstep  = 1,
+    .ywrapstep = 0,
+    .accel     = TLCD_ACCEL,
 };
 
-static struct tlcdml_fb_data {
+struct tlcdml_fb_data {
     unsigned fb_num;
     struct fb_info* infos[TLCDML_LAYERS_NUMBER];
 };
@@ -194,7 +196,7 @@ static unsigned int fb_memsize __initdata = 0;
 static unsigned int fb_hard = 0; // fb_hard means: 0, from __get_free_pages. 1, ioremap. 2, no allocation (see thinklcdml_setfbmem)
 static unsigned long fb_addr __initdata = 0;
 static struct fb_var_screeninfo default_var __initdata;
-static unsigned long virtual_regs_base = NULL, color_mode = 0; // color mode defaults to LUT8
+static unsigned long virtual_regs_base = 0, color_mode = 0; // color mode defaults to LUT8
 
 static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info);
 static int thinklcdml_set_par(struct fb_info *info);
@@ -214,24 +216,24 @@ static int thinklcdml_cursor(struct fb_info *info, struct fb_cursor *cursor);
 static void dump_regs( struct thinklcdml_par *par, int layer)
 {
     LVL_DBG (3, "*** ThinkLCDML register dump!***\n");
-    LVL_DBG (3, "TLCD_REG_MODE=%p\n", think_readl( par->regs, TLCD_REG_MODE));
-    LVL_DBG (3, "TLCD_REG_CLKCTRL=%p\n", think_readl( par->regs, TLCD_REG_CLKCTRL));
-    LVL_DBG (3, "TLCD_REG_BGCOLOR=%p\n", think_readl( par->regs, TLCD_REG_BGCOLOR));
-    LVL_DBG (3, "TLCD_REG_RESXY=%p\n", think_readl( par->regs, TLCD_REG_RESXY));
-    LVL_DBG (3, "TLCD_REG_STRIDE=%p\n", think_readl( par->regs, TLCD_REG_STRIDE));
-    LVL_DBG (3, "TLCD_REG_FRONTPORCHXY=%p\n", think_readl( par->regs, TLCD_REG_FRONTPORCHXY));
-    LVL_DBG (3, "TLCD_REG_BLANKINGXY=%p\n", think_readl( par->regs, TLCD_REG_BLANKINGXY));
-    LVL_DBG (3, "TLCD_REG_BACKPORCHXY=%p\n", think_readl( par->regs, TLCD_REG_BACKPORCHXY));
-    LVL_DBG (3, "TLCD_REG_CURSORXY=%p\n", think_readl( par->regs, TLCD_REG_CURSORXY));
+    LVL_DBG (3, "TLCD_REG_MODE=0x%08x\n", think_readl( par->regs, TLCD_REG_MODE));
+    LVL_DBG (3, "TLCD_REG_CLKCTRL=0x%08x\n", think_readl( par->regs, TLCD_REG_CLKCTRL));
+    LVL_DBG (3, "TLCD_REG_BGCOLOR=0x%08x\n", think_readl( par->regs, TLCD_REG_BGCOLOR));
+    LVL_DBG (3, "TLCD_REG_RESXY=0x%08x\n", think_readl( par->regs, TLCD_REG_RESXY));
+    LVL_DBG (3, "TLCD_REG_STRIDE=0x%08x\n", think_readl( par->regs, TLCD_REG_STRIDE));
+    LVL_DBG (3, "TLCD_REG_FRONTPORCHXY=0x%08x\n", think_readl( par->regs, TLCD_REG_FRONTPORCHXY));
+    LVL_DBG (3, "TLCD_REG_BLANKINGXY=0x%08x\n", think_readl( par->regs, TLCD_REG_BLANKINGXY));
+    LVL_DBG (3, "TLCD_REG_BACKPORCHXY=0x%08x\n", think_readl( par->regs, TLCD_REG_BACKPORCHXY));
+    LVL_DBG (3, "TLCD_REG_CURSORXY=0x%08x\n", think_readl( par->regs, TLCD_REG_CURSORXY));
 
-    LVL_DBG (3, "TLCD_REG_LAYER_MODE(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_MODE(layer) ));
-    LVL_DBG (3, "TLCD_REG_LAYER_STARTXY(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
-    LVL_DBG (3, "TLCD_REG_LAYER_SIZEXY(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
-    LVL_DBG (3, "TLCD_REG_LAYER_BASEADDR(%d)(v)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_BASEADDR(layer) ));
-    LVL_DBG (3, "TLCD_REG_LAYER_STRIDE(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_STRIDE(layer) ));
-    LVL_DBG (3, "TLCD_REG_LAYER_RESXY(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_RESXY(layer) ));
-    LVL_DBG (3, "TLCD_REG_LAYER_SCALEX(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEX(layer) ));
-    LVL_DBG (3, "TLCD_REG_LAYER_SCALEY(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEY(layer) ));}
+    LVL_DBG (3, "TLCD_REG_LAYER_MODE(%d)=0x%08x\n", layer, think_readl( par->regs, TLCD_REG_LAYER_MODE(layer) ));
+    LVL_DBG (3, "TLCD_REG_LAYER_STARTXY(%d)=0x%08x\n", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
+    LVL_DBG (3, "TLCD_REG_LAYER_SIZEXY(%d)=0x%08x\n", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
+    LVL_DBG (3, "TLCD_REG_LAYER_BASEADDR(%d)(v)=0x%08x\n", layer, think_readl( par->regs, TLCD_REG_LAYER_BASEADDR(layer) ));
+    LVL_DBG (3, "TLCD_REG_LAYER_STRIDE(%d)=0x%08x\n", layer, think_readl( par->regs, TLCD_REG_LAYER_STRIDE(layer) ));
+    LVL_DBG (3, "TLCD_REG_LAYER_RESXY(%d)=0x%08x\n", layer, think_readl( par->regs, TLCD_REG_LAYER_RESXY(layer) ));
+    LVL_DBG (3, "TLCD_REG_LAYER_SCALEX(%d)=0x%08x\n", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEX(layer) ));
+    LVL_DBG (3, "TLCD_REG_LAYER_SCALEY(%d)=0x%08x\n", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEY(layer) ));}
 
 
 
@@ -956,7 +958,7 @@ static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned lon
     return 0;
 }
 
-static int thinklcdml_add_layer(struct platform_device *device, unsigned long physical_start, unsigned long virtual_start)
+static int thinklcdml_add_layer(struct platform_device *device, unsigned long physical_start, unsigned long virtual_start, dma_addr_t dma_handle)
 {
     int retval;
     struct fb_info *info;
@@ -978,13 +980,14 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
     }
     par = info->par;
     par->regs = virtual_regs_base;
+    par->dma_handle = dma_handle;
 
     /* initialize register file */
     think_writel (par->regs, TLCD_REG_LAYER_SCALEY(drvdata->fb_num), 0x4000);
     think_writel (par->regs, TLCD_REG_LAYER_SCALEX(drvdata->fb_num), 0x4000);
     think_writel(par->regs, TLCD_REG_LAYER_BASEADDR(drvdata->fb_num), physical_start);
     think_writel(par->regs, TLCD_REG_LAYER_MODE(drvdata->fb_num),      (drvdata->fb_num ? TLCD_MODE : (1<<31)|TLCD_MODE) | color_mode );
-    LVL_DBG (3, "Framebuffer no: %d, physical start: %p, virtual start %p, mode: %p\n", drvdata->fb_num, physical_start, virtual_start, think_readl(par->regs, TLCD_REG_LAYER_MODE(drvdata->fb_num)));
+    LVL_DBG (3, "Framebuffer no: %d, physical start: 0x%08x, virtual start 0x%08x, mode: 0x%08x\n", drvdata->fb_num, physical_start, virtual_start, think_readl(par->regs, TLCD_REG_LAYER_MODE(drvdata->fb_num)));
 
     /* fixup default_var; must already have set info->screen_size */
     info->screen_size    = fb_memsize;
@@ -1023,7 +1026,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
 	goto err_cmap_alloc;
     }
 
-    if (OL(info)!=drvdata->fb_num) PRINT_E ("minor numbers seem to be a bit messed up...\n");
+    if (OL(info) != drvdata->fb_num) PRINT_E ("minor numbers seem to be a bit messed up...\n");
 
     drvdata->fb_num++;
 
@@ -1038,11 +1041,17 @@ err_fb_alloc:
     return retval;
 }
 
+void free_framebuffers(struct platform_device *device)
+{
+
+}
+
 static int __init thinklcdml_probe(struct platform_device *device)
 {
     int retval = -ENOMEM;
     unsigned long virtual_start[TLCDML_LAYERS_NUMBER];
     unsigned long physical_start[TLCDML_LAYERS_NUMBER];
+    dma_addr_t dma_handle[TLCDML_LAYERS_NUMBER];
     unsigned long page;
     struct tlcdml_fb_data *drvdata = kmalloc(sizeof(struct tlcdml_fb_data), GFP_KERNEL);
     unsigned i, alloc_layers;
@@ -1059,13 +1068,13 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	PRINT_I("Using specificed framebuffer base address: 0x%08lx\n", fb_addr);
 	physical_start[0] = fb_addr;
 
-	/* ask from the kernel to reserve that physical memory range for us; not really necessary, but stronly recommended */
+	/* Ask from the kernel to reserve that physical memory range for us; not really necessary, but stronly recommended */
 	if (!request_mem_region(physical_start[0], fb_memsize, device->name)) {
 	    PRINT_E("Request mem region failed\n");
 	    return -ENOMEM;
 	}
 
-	/* and finally remap that memory to kernel's address space */
+	/* Finally remap that memory to kernel's address space */
 	virtual_start[0] = (unsigned long) ioremap_nocache(physical_start[0], fb_memsize);
 	if (!virtual_start[0]) {
 	    PRINT_E("Failed to remap memory\n");
@@ -1074,49 +1083,41 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	}
 	alloc_layers = 1;
     } else {
-	/* allocate our frambuffer memory
+	/* Allocate our frambuffer memory
 	 *
-	 * if the following fails, try to configure your kernel with CONFIG_FORCE_MAX_ZONEORDER;
+	 * If the following fails, try to configure your kernel with CONFIG_FORCE_MAX_ZONEORDER;
 	 * as of writing this, MAX_ORDER is configured as 11, which allows a maximum alloc of 4MB */
 	for (alloc_layers = 0; alloc_layers < TLCDML_LAYERS_NUMBER; alloc_layers++) {
-	    virtual_start[alloc_layers] = (unsigned long) __get_free_pages(GFP_KERNEL, get_order(fb_memsize));
+	    virtual_start[alloc_layers] = dma_zalloc_coherent(&device->dev, fb_memsize, &dma_handle[alloc_layers], GFP_KERNEL);
+
 	    if (!virtual_start[alloc_layers]) {
 		PRINT_E("Unable to allocate framebuffer:%u memory (%u bytes order:%u MAX_ORDER:%u)\n", alloc_layers, fb_memsize, get_order(fb_memsize), MAX_ORDER);
 		if (!alloc_layers) return -ENOMEM;
 	    }
 
 	    physical_start[alloc_layers] = __pa(virtual_start[alloc_layers]);
-
-	    /* set page reserved so that mmap will work; this is necessary since we'll be remapping normal memory */
-	    for (page = virtual_start[alloc_layers]; page < PAGE_ALIGN(virtual_start[alloc_layers] + fb_memsize); page += PAGE_SIZE) {
-		SetPageReserved(virt_to_page((void *)page));
-	    }
 	}
     }
 
-    /* clear out the screen, try to minimize flickering */
-    for (i = 0; i<alloc_layers; i++) {
-	memset((unsigned long *) virtual_start[i], 0, fb_memsize);
-	PRINT_I("VRAM fb%u PA:0x%08lx -> VA:0x%lx len:%u\n", i, physical_start[i], virtual_start[i], fb_memsize);
-    }
-
+    /* Remap registers to mem space */
     virtual_regs_base = (unsigned long)ioremap_nocache(TLCD_PHYSICAL_BASE, TLCD_MMIOALLOC);
     if (!virtual_regs_base) {
 	PRINT_E("MMIO remap failed\n");
 	goto err_fb_mem_alloc;
-    } else
+    } else {
 	PRINT_I("MMIO PA:0x%08x -> VA:0x%08x len:%u\n", TLCD_PHYSICAL_BASE, virtual_regs_base, TLCD_MMIOALLOC);
+    }
 
-    think_writel(virtual_regs_base, TLCD_REG_MODE, TLCD_MODE);;
-
+    think_writel(virtual_regs_base, TLCD_REG_MODE, TLCD_MODE);
 
     /* allocate the framebuffer */
     for (i=0; i<alloc_layers; i++) {
-	if (thinklcdml_add_layer(device, physical_start[i], virtual_start[i])) {
+	if (thinklcdml_add_layer(device, physical_start[i], virtual_start[i], dma_handle[i])) {
 	    PRINT_E("Failed to register layer %d\n",i);
 	    goto err_reg_map;
 	}
     }
+
     PRINT_I("Registered %d framebuffer devices.\n", i+1);
 
     /* initialize the wait object for interrupt */
@@ -1129,8 +1130,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
     }
     return 0;
 
-    // XXX: check how error interact with the creation of multiple
-    // fbs
+    // XXX: check how error interact with the creation of multiple fbs
 err_irq_setup:
     free_irq(TLCD_VSYNC_IRQ, drvdata->infos[0]->par);
 
@@ -1146,8 +1146,7 @@ err_fb_mem_alloc:
 	}
     }
     else
-	for (i=0; i<alloc_layers; i++)
-	    free_pages(virtual_start[i], get_order(fb_memsize));
+	free_framebuffers(device);
 
     return retval;
 }
@@ -1157,7 +1156,6 @@ static int thinklcdml_remove(struct platform_device *device)
     struct fb_info* info;
     struct tlcdml_fb_data *drvdata = platform_get_drvdata(device);
     struct thinklcdml_par *par = drvdata->infos[0]->par;
-    unsigned long page;
     unsigned i;
 
     PRINT_PROC_ENTRY;
@@ -1173,14 +1171,8 @@ static int thinklcdml_remove(struct platform_device *device)
 	if (fb_hard == 1) {
 	    iounmap((void *)info->fix.smem_start);
 	    release_mem_region(info->fix.smem_start, info->fix.smem_len);
-	}
-	else if (fb_hard == 0) {
-	    /* clear page reserved; this is necessary */
-	    for (page = (unsigned long)info->screen_base; page < PAGE_ALIGN((unsigned long)info->screen_base + info->screen_size); page += PAGE_SIZE)
-		ClearPageReserved(virt_to_page((void *)page));
-
-	    /* and free the pages */
-	    free_pages((unsigned long)info->screen_base, get_order(info->screen_size));
+	} else if (fb_hard == 0) {
+	    dma_free_coherent(&device->dev, info->fix.smem_start, info->fix.smem_len, ((struct thinklcdml_par*)info->par)->dma_handle);
 	}
 
 	unregister_framebuffer(info);
@@ -1202,14 +1194,14 @@ static struct platform_driver thinklcdml_driver = {
 	.name  = "thinklcdml",
     },
 
-    .probe	= thinklcdml_probe,
+    .probe  = thinklcdml_probe,
     .remove = thinklcdml_remove,
 };
 
 static struct platform_device thinklcdml_device = {
-    .name	= "thinklcdml",
-    .id	    = 0,
-    .dev	= {
+    .name = "thinklcdml",
+    .id	  = 0,
+    .dev  = {
 	.release = thinklcdml_platform_release,
     }
 };
@@ -1266,8 +1258,10 @@ module_init(thinklcdml_init);
 static void __exit thinklcdml_exit(void)
 {
     int i;
+
     for (i=0;i<TLCDML_LAYERS_NUMBER;i++)
 	platform_device_unregister(&thinklcdml_device);
+
     platform_driver_unregister(&thinklcdml_driver);
 }
 
@@ -1275,7 +1269,7 @@ module_exit(thinklcdml_exit);
 
 module_param(fb_hard, int, 0644);
 MODULE_PARM_DESC(fb_hard, "Framebuffer memory is given by the user");
-module_param(fb_memsize, int, 0644);
+module_param(fb_memsize, ulong, 0644);
 MODULE_PARM_DESC(fb_memsize, "Framebuffer memory size");
 module_param(fb_addr, ulong, 0644);
 MODULE_PARM_DESC(fb_addr, "Framebuffer memory base (only used if fb_hard=1)");
