@@ -525,9 +525,6 @@ static int thinklcdml_pan_display(struct fb_var_screeninfo *var, struct fb_info 
 
 static int thinklcdml_mmap(struct fb_info *info, struct vm_area_struct *vma)
 {
-    struct thinklcdml_par *par = info->par;
-    unsigned long mode = think_readl( par->regs, TLCD_REG_LAYER_MODE(OL(info)) );
-
     PRINT_PROC_ENTRY;
 
     // think_writel( par->regs, TLCD_REG_LAYER_MODE(OL(info)), mode | TLCD_CONFIG_ENABLE);
@@ -610,7 +607,7 @@ static int thinklcdml_cursor(struct fb_info *info, struct fb_cursor *cursor)
 	return -ENXIO;
 
     /* first of all, disable the cursor */
-    think_writel(par->regs, TLCD_REG_MODE, think_readl(par->regs, TLCD_REG_MODE) & ~TLCD_CONFIG_CURSOR | color_mode);
+    think_writel(par->regs, TLCD_REG_MODE, (think_readl(par->regs, TLCD_REG_MODE) & ~TLCD_CONFIG_CURSOR) | color_mode);
 
     if (cursor->set & FB_CUR_SETPOS) {
 	PRINT_D("thinklcdml_cursor: SETPOS x:%u y:%u\n", cursor->image.dx, cursor->image.dy);
@@ -881,6 +878,7 @@ static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned lon
     int i,mode;
     int red,green,blue;
     unsigned Bpp, color;
+    void* offset;
 
     PRINT_PROC_ENTRY;
 
@@ -896,24 +894,23 @@ static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned lon
     case TLCDML_COLOR_CLEAR:
 	Bpp = info->var.bits_per_pixel/8;
 	color = arg << (8*( sizeof(unsigned long) - Bpp));
-	void* offset;
-	LVL_DBG (3,  "clear color: %x (depth: %d, stride: %d, color mode: %x)\n", color, info->var.bits_per_pixel, info->fix.line_length, color_mode);
+	LVL_DBG (3,  "clear color: %x (depth: %d, stride: %d, color mode: %lx)\n", color, info->var.bits_per_pixel, info->fix.line_length, color_mode);
 
 	memset(info->screen_base, 0, info->fix.line_length * info->var.yres_virtual );
-	for ( offset = info->screen_base; offset<info->screen_base + info->fix.line_length * info->var.yres_virtual; offset += info->fix.line_length ) {
+	for ( offset = info->screen_base; (char*)offset < info->screen_base + info->fix.line_length * info->var.yres_virtual; offset += info->fix.line_length ) {
 	    for ( i = 0; i < info->fix.line_length; i+=Bpp) {
 		*(unsigned*)(offset+i) = color;
 	    }
 	}
 	break;
     case TLCDML_GET_INFO:
-	memcpy(arg, &info->var, sizeof(struct fb_var_screeninfo));
+	memcpy((struct fb_var_screeninfo*)arg, &info->var, sizeof(struct fb_var_screeninfo));
 	break;
     case TLCDML_DUMP_REGS:
 	if (arg < TLCDML_LAYERS_NUMBER)
 	    dump_regs(par, arg);
 	else
-	    PRINT_E( "Dumping of registers of layer %d cannot be done (layer number %d)\n", arg, TLCDML_LAYERS_NUMBER);
+	    PRINT_E( "Dumping of registers of layer %lu cannot be done (layer number %d)\n", arg, TLCDML_LAYERS_NUMBER);
 	break;
     case TLCDML_GET_LAYER_NUMBER:
 	*((unsigned long*)arg) = OL(info);
@@ -952,7 +949,7 @@ static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned lon
 	break;
 	//------------------------------------------------------------------------
     default:
-	PRINT_W("thinklcdml_ioctl: Unknown ioctl 0x%08x has been requested (arg: 0x%08x)\n", cmd, arg);
+	PRINT_W("thinklcdml_ioctl: Unknown ioctl 0x%08x has been requested (arg: 0x%08lx)\n", cmd, arg);
 	return -EINVAL;
     }
     return 0;
@@ -987,7 +984,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
     think_writel (par->regs, TLCD_REG_LAYER_SCALEX(drvdata->fb_num), 0x4000);
     think_writel(par->regs, TLCD_REG_LAYER_BASEADDR(drvdata->fb_num), physical_start);
     think_writel(par->regs, TLCD_REG_LAYER_MODE(drvdata->fb_num),      (drvdata->fb_num ? TLCD_MODE : (1<<31)|TLCD_MODE) | color_mode );
-    LVL_DBG (3, "Framebuffer no: %d, physical start: 0x%08x, virtual start 0x%08x, mode: 0x%08x\n", drvdata->fb_num, physical_start, virtual_start, think_readl(par->regs, TLCD_REG_LAYER_MODE(drvdata->fb_num)));
+    LVL_DBG (3, "Framebuffer no: %d, physical start: 0x%08lx, virtual start: 0x%08lx, mode: 0x%08x\n", drvdata->fb_num, physical_start, virtual_start, think_readl(par->regs, TLCD_REG_LAYER_MODE(drvdata->fb_num)));
 
     /* fixup default_var; must already have set info->screen_size */
     info->screen_size    = fb_memsize;
@@ -1052,7 +1049,6 @@ static int __init thinklcdml_probe(struct platform_device *device)
     unsigned long virtual_start[TLCDML_LAYERS_NUMBER];
     unsigned long physical_start[TLCDML_LAYERS_NUMBER];
     dma_addr_t dma_handle[TLCDML_LAYERS_NUMBER];
-    unsigned long page;
     struct tlcdml_fb_data *drvdata = kmalloc(sizeof(struct tlcdml_fb_data), GFP_KERNEL);
     unsigned i, alloc_layers;
 
@@ -1088,7 +1084,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	 * If the following fails, try to configure your kernel with CONFIG_FORCE_MAX_ZONEORDER;
 	 * as of writing this, MAX_ORDER is configured as 11, which allows a maximum alloc of 4MB */
 	for (alloc_layers = 0; alloc_layers < TLCDML_LAYERS_NUMBER; alloc_layers++) {
-	    virtual_start[alloc_layers] = dma_zalloc_coherent(&device->dev, fb_memsize, &dma_handle[alloc_layers], GFP_KERNEL);
+	    virtual_start[alloc_layers] = (long unsigned)dma_zalloc_coherent(&device->dev, fb_memsize, &dma_handle[alloc_layers], GFP_KERNEL);
 
 	    if (!virtual_start[alloc_layers]) {
 		PRINT_E("Unable to allocate framebuffer:%u memory (%u bytes order:%u MAX_ORDER:%u)\n", alloc_layers, fb_memsize, get_order(fb_memsize), MAX_ORDER);
@@ -1105,7 +1101,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	PRINT_E("MMIO remap failed\n");
 	goto err_fb_mem_alloc;
     } else {
-	PRINT_I("MMIO PA:0x%08x -> VA:0x%08x len:%u\n", TLCD_PHYSICAL_BASE, virtual_regs_base, TLCD_MMIOALLOC);
+	PRINT_I("MMIO PA:0x%08x -> VA:0x%08lx len:%u\n", TLCD_PHYSICAL_BASE, virtual_regs_base, TLCD_MMIOALLOC);
     }
 
     think_writel(virtual_regs_base, TLCD_REG_MODE, TLCD_MODE);
@@ -1130,9 +1126,9 @@ static int __init thinklcdml_probe(struct platform_device *device)
     }
     return 0;
 
-    // XXX: check how error interact with the creation of multiple fbs
-err_irq_setup:
-    free_irq(TLCD_VSYNC_IRQ, drvdata->infos[0]->par);
+/*     // XXX: check how error interact with the creation of multiple fbs */
+/* err_irq_setup: */
+/*     free_irq(TLCD_VSYNC_IRQ, drvdata->infos[0]->par); */
 
 err_reg_map:
     iounmap((void *)virtual_regs_base);
@@ -1172,7 +1168,7 @@ static int thinklcdml_remove(struct platform_device *device)
 	    iounmap((void *)info->fix.smem_start);
 	    release_mem_region(info->fix.smem_start, info->fix.smem_len);
 	} else if (fb_hard == 0) {
-	    dma_free_coherent(&device->dev, info->fix.smem_start, info->fix.smem_len, ((struct thinklcdml_par*)info->par)->dma_handle);
+	    dma_free_coherent(&device->dev, info->fix.smem_len, (void*)info->fix.smem_start, ((struct thinklcdml_par*)info->par)->dma_handle);
 	}
 
 	unregister_framebuffer(info);
