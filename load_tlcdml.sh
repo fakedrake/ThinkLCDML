@@ -1,7 +1,7 @@
 #!/bin/sh
 
-module="tlcdml"
-device="tlcdml"
+module="thinklcdml"
+device="thinklcdml"
 mode="664"
 
 /sbin/insmod $module.ko $* || exit 1

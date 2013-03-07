@@ -276,11 +276,11 @@ static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *i
     /*  FB_VMODE_CONUPDATE and FB_VMODE_SMOOTH_XPAN are equal!
      *  as FB_VMODE_SMOOTH_XPAN is only used internally */
     if (var->vmode & FB_VMODE_CONUPDATE)
-    {
-	var->vmode |= FB_VMODE_YWRAP;
-	var->xoffset = info->var.xoffset;
-	var->yoffset = info->var.yoffset;
-    }
+	{
+	    var->vmode |= FB_VMODE_YWRAP;
+	    var->xoffset = info->var.xoffset;
+	    var->yoffset = info->var.yoffset;
+	}
 
     /* some very basic checks */
     if (!var->xres)
@@ -314,10 +314,10 @@ static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *i
     line_length = get_line_length(var->xres_virtual, var->bits_per_pixel);
 
     if (line_length * var->yres_virtual > info->screen_size)
-    {
-	PRINT_W("Bad mode: out of memory (virtual:%ux%u bpp:%u)\n", var->xres_virtual, var->yres_virtual, var->bits_per_pixel);
-	return -ENOMEM;
-    }
+	{
+	    PRINT_W("Bad mode: out of memory (virtual:%ux%u bpp:%u)\n", var->xres_virtual, var->yres_virtual, var->bits_per_pixel);
+	    return -ENOMEM;
+	}
 
     /* Now that we checked it we alter var. The reason being is that the video
      * mode passed in might not work but slight changes to it might make it
@@ -325,55 +325,55 @@ static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *i
     switch (var->bits_per_pixel) {
     case 8:
 	if (var->grayscale || var->red.offset == 0)
-	{	/* LUT8 && L8 */
-	    var->red    = (struct fb_bitfield) { 0, 8, 0 };
-	    var->green  = (struct fb_bitfield) { 0, 8, 0 };
-	    var->blue   = (struct fb_bitfield) { 0, 8, 0 };
-	    var->transp = (struct fb_bitfield) { 0, 0, 0 };
-	}
+	    {	/* LUT8 && L8 */
+		var->red    = (struct fb_bitfield) { 0, 8, 0 };
+		var->green  = (struct fb_bitfield) { 0, 8, 0 };
+		var->blue   = (struct fb_bitfield) { 0, 8, 0 };
+		var->transp = (struct fb_bitfield) { 0, 0, 0 };
+	    }
 	else
-	{	/* RGB 332*/
-	    var->red    = (struct fb_bitfield) { 5, 3, 0 };
-	    var->green  = (struct fb_bitfield) { 2, 3, 0 };
-	    var->blue   = (struct fb_bitfield) { 0, 2, 0 };
-	    var->transp = (struct fb_bitfield) { 0, 0, 0 };
-	}
+	    {	/* RGB 332*/
+		var->red    = (struct fb_bitfield) { 5, 3, 0 };
+		var->green  = (struct fb_bitfield) { 2, 3, 0 };
+		var->blue   = (struct fb_bitfield) { 0, 2, 0 };
+		var->transp = (struct fb_bitfield) { 0, 0, 0 };
+	    }
 
 	break;
 
     case 16:
 	if (var->transp.length)
-	{	/* RGBA 5551 */
-	    var->red    = (struct fb_bitfield) { 11, 5, 0 };
-	    var->green  = (struct fb_bitfield) {  6, 5, 0 };
-	    var->blue   = (struct fb_bitfield) {  1, 5, 0 };
-	    var->transp = (struct fb_bitfield) {  0, 1, 0 };
-	}
+	    {	/* RGBA 5551 */
+		var->red    = (struct fb_bitfield) { 11, 5, 0 };
+		var->green  = (struct fb_bitfield) {  6, 5, 0 };
+		var->blue   = (struct fb_bitfield) {  1, 5, 0 };
+		var->transp = (struct fb_bitfield) {  0, 1, 0 };
+	    }
 	else
-	{	/* RGB 565 */
-	    var->red    = (struct fb_bitfield) { 11, 5, 0 };
-	    var->green  = (struct fb_bitfield) {  5, 6, 0 };
-	    var->blue   = (struct fb_bitfield) {  0, 5, 0 };
-	    var->transp = (struct fb_bitfield) {  0, 0, 0 };
-	}
+	    {	/* RGB 565 */
+		var->red    = (struct fb_bitfield) { 11, 5, 0 };
+		var->green  = (struct fb_bitfield) {  5, 6, 0 };
+		var->blue   = (struct fb_bitfield) {  0, 5, 0 };
+		var->transp = (struct fb_bitfield) {  0, 0, 0 };
+	    }
 
 	break;
 
     case 32:
 	if (var->transp.offset || var->red.offset == 16)
-	{	/* ARGB 8888 */
-	    var->transp = (struct fb_bitfield) { 24, 8, 0 };
-	    var->red    = (struct fb_bitfield) { 16, 8, 0 };
-	    var->green  = (struct fb_bitfield) {  8, 8, 0 };
-	    var->blue   = (struct fb_bitfield) {  0, 8, 0 };
-	}
+	    {	/* ARGB 8888 */
+		var->transp = (struct fb_bitfield) { 24, 8, 0 };
+		var->red    = (struct fb_bitfield) { 16, 8, 0 };
+		var->green  = (struct fb_bitfield) {  8, 8, 0 };
+		var->blue   = (struct fb_bitfield) {  0, 8, 0 };
+	    }
 	else
-	{	/* RGBA 8888 */
-	    var->red    = (struct fb_bitfield) { 24, 8, 0 };
-	    var->green  = (struct fb_bitfield) { 16, 8, 0 };
-	    var->blue   = (struct fb_bitfield) {  8, 8, 0 };
-	    var->transp = (struct fb_bitfield) {  0, 8, 0 };
-	}
+	    {	/* RGBA 8888 */
+		var->red    = (struct fb_bitfield) { 24, 8, 0 };
+		var->green  = (struct fb_bitfield) { 16, 8, 0 };
+		var->blue   = (struct fb_bitfield) {  8, 8, 0 };
+		var->transp = (struct fb_bitfield) {  0, 8, 0 };
+	    }
 
 	break;
     }
@@ -926,12 +926,12 @@ static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned lon
 	    think_writel(par->regs, TLCD_REG_MODE, mode & ~TLCD_CONFIG_GAMMA);
 	else {
 	    for(i=0;i<256;i++)
-	    {
-		red   = CLAMP255(i+arg);
-		green = CLAMP255(i+arg);
-		blue  = CLAMP255(i+arg);
-		think_writel(par->regs, TLCD_PALETTE_OFFSET + i * 4, (red << 16) | (green << 8) | (blue << 0));
-	    }
+		{
+		    red   = CLAMP255(i+arg);
+		    green = CLAMP255(i+arg);
+		    blue  = CLAMP255(i+arg);
+		    think_writel(par->regs, TLCD_PALETTE_OFFSET + i * 4, (red << 16) | (green << 8) | (blue << 0));
+		}
 	    think_writel(par->regs, TLCD_REG_MODE, mode | TLCD_CONFIG_GAMMA);
 	}
 	return 1;
@@ -1029,10 +1029,10 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
 
     return 0;
 
-err_cmap_alloc:
+ err_cmap_alloc:
     fb_dealloc_cmap(&info->cmap);
 
-err_fb_alloc:
+ err_fb_alloc:
     framebuffer_release(info);
 
     return retval;
@@ -1084,10 +1084,10 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	 * If the following fails, try to configure your kernel with CONFIG_FORCE_MAX_ZONEORDER;
 	 * as of writing this, MAX_ORDER is configured as 11, which allows a maximum alloc of 4MB */
 	for (alloc_layers = 0; alloc_layers < TLCDML_LAYERS_NUMBER; alloc_layers++) {
-	    virtual_start[alloc_layers] = (long unsigned)dma_zalloc_coherent(&device->dev, fb_memsize, &dma_handle[alloc_layers], GFP_KERNEL);
+	    virtual_start[alloc_layers] = (long unsigned)dma_alloc_coherent(&device->dev, fb_memsize, &dma_handle[alloc_layers], GFP_KERNEL);
 
 	    if (!virtual_start[alloc_layers]) {
-		PRINT_E("Unable to allocate framebuffer:%u memory (%u bytes order:%u MAX_ORDER:%u)\n", alloc_layers, fb_memsize, get_order(fb_memsize), MAX_ORDER);
+		PRINT_E("Unable to allocate framebuffer: %u memory (%u bytes, order:%u MAX_ORDER:%u)\n", alloc_layers, fb_memsize, get_order(fb_memsize), MAX_ORDER);
 		if (!alloc_layers) return -ENOMEM;
 	    }
 
@@ -1126,16 +1126,15 @@ static int __init thinklcdml_probe(struct platform_device *device)
     }
     return 0;
 
-/*     // XXX: check how error interact with the creation of multiple fbs */
-/* err_irq_setup: */
-/*     free_irq(TLCD_VSYNC_IRQ, drvdata->infos[0]->par); */
+    /*     // XXX: check how error interact with the creation of multiple fbs */
+    /* err_irq_setup: */
+    /*     free_irq(TLCD_VSYNC_IRQ, drvdata->infos[0]->par); */
 
-err_reg_map:
+ err_reg_map:
     iounmap((void *)virtual_regs_base);
 
-err_fb_mem_alloc:
-    if (fb_hard)
-    {
+ err_fb_mem_alloc:
+    if (fb_hard) {
 	for (i=0; i<alloc_layers; i++) {
 	    iounmap((void *)physical_start[i]);
 	    release_mem_region(physical_start[i], fb_memsize);
@@ -1161,7 +1160,7 @@ static int thinklcdml_remove(struct platform_device *device)
     free_irq(TLCD_VSYNC_IRQ, par);
 
     iounmap((void *)virtual_regs_base);
-    for (i = 0; i<drvdata->fb_num; i++) {
+    while (drvdata->fb_num) {
 	info = drvdata->infos[i];
 
 	if (fb_hard == 1) {
@@ -1174,7 +1173,7 @@ static int thinklcdml_remove(struct platform_device *device)
 	unregister_framebuffer(info);
 	framebuffer_release(info);
     }
-    drvdata->fb_num = 0;
+
     return 0;
 }
 
@@ -1253,11 +1252,7 @@ module_init(thinklcdml_init);
 #ifdef MODULE
 static void __exit thinklcdml_exit(void)
 {
-    int i;
-
-    for (i=0;i<TLCDML_LAYERS_NUMBER;i++)
-	platform_device_unregister(&thinklcdml_device);
-
+    platform_device_unregister(&thinklcdml_device);
     platform_driver_unregister(&thinklcdml_driver);
 }
 
