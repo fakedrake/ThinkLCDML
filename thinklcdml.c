@@ -1160,7 +1160,7 @@ static int thinklcdml_remove(struct platform_device *device)
     free_irq(TLCD_VSYNC_IRQ, par);
 
     iounmap((void *)virtual_regs_base);
-    while (drvdata->fb_num) {
+    for (i = drvdata->fb_num; i >= 0; i--) {
 	info = drvdata->infos[i];
 
 	if (fb_hard == 1) {
