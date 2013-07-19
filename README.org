@@ -1,0 +1,84 @@
+* ThinkLCDML driver
+  This is the driver for thinklcdml LCD controller.
+
+** Building
+   To build for xilinx zynq run =builder.sh=. Before you do anything
+   however you will have to configure the =Makefile= variable
+   =LINUX_HEADERS= to point to the linux headers you want. You will
+   need to have =arm-xilinx-gnueabi-= gcc setup and in your
+   =PATH=. You may run =make host= to build for the host system.
+
+** Usage
+   The thing with this driver is that it doesn't really have very good
+   defaults and the load script is miserable so for now you should
+   just modprobe and make sure you pass =fb_memsize= that makes sense
+   (or use =fb_hard= at your own risk). For example:
+
+   #+BEGIN_EXAMPLE
+   modprobe thinklcdml fb_memsize=1920000
+   #+END_EXAMPLE
+
+   Note: 800*600*4 = 1920000
+
+* Roadmap
+** TODO Major Number
+   The major number is currently 0. Fix that to something that makes
+   sense.
+
+** TODO Load Script
+   Create a load script for the driver. It will have to take care of:
+
+   - Device creation in =/dev/=
+   - Pass the correct parameters.
+   - Make some basic checks before loading.
+
+** TODO =rmmod= errors
+   When I try to =rmmod thinklcdml= i get
+
+   #+BEGIN_EXAMPLE
+   $ rmmod thinklcdml
+Unable to handle kernel NULL pointer dereference at virtual address 00000034
+pgd = ee3b4000
+[00000034] *pgd=2db44831, *pte=00000000, *ppte=00000000
+Internal error: Oops: 17 [#2] PREEMPT SMP ARM
+Modules linked in: thinklcdml(O-)
+CPU: 0    Tainted: G      D W  O  (3.6.0-xilinx #3)
+PC is at sysfs_find_dirent+0x8/0xc8
+LR is at sysfs_get_dirent+0x28/0x74
+pc : [<c00e9c24>]    lr : [<c00e9dc0>]    psr: 40000013
+sp : edaf1ec0  ip : edaf1ed8  fp : 00000001
+r10: 00000000  r9 : edaf0000  r8 : c000e1e4
+r7 : 00000081  r6 : 00000000  r5 : c03a60c2  r4 : 00000000
+r3 : 00000000  r2 : c03a60c2  r1 : 00000000  r0 : 00000000
+Flags: nZcv  IRQs on  FIQs on  Mode SVC_32  ISA ARM  Segment user
+Control: 10c5387d  Table: 2e3b406a  DAC: 00000015
+Process rmmod (pid: 664, stack limit = 0xedaf02f0)
+Stack: (0xedaf1ec0 to 0xedaf2000)
+1ec0: 00000000 00000000 00000000 c03a60c2 00000000 00000081 c000e1e4 c00e9dc0
+1ee0: bf001dd8 c0530bd0 bf001dd0 c00eb16c 00000002 bf001dd8 bf001dd8 c01f43e4
+1f00: 00000002 bf001dd8 c0530890 c01edb04 00000000 bf001dd0 bf001dd0 c01f1b8c
+1f20: bf001dd0 bf001dd0 bef83f6d c01f1e28 bf001d20 bf0010c8 bf0010ac bf001f38
+1f40: 00000000 c005a610 00000000 6e696874 64636c6b ed006c6d 00000000 ffffffff
+1f60: b6f39000 c008d18c 00000020 b6f38000 edb85838 00000000 b6f38000 edb85800
+1f80: c000e1e4 00af0000 bf001f38 00000880 edaf1f94 00000000 00000000 bef83f6d
+1fa0: 00000001 c000e080 00000000 bef83f6d bef83f6d 00000880 000f61bd 000f61c8
+1fc0: 00000000 bef83f6d 00000001 00000081 00000001 00000047 bef83e98 00000001
+1fe0: 000f61c8 bef83b28 0002ef84 b6e2fabc 60000010 bef83f6d 00000000 00000000
+[<c00e9c24>] (sysfs_find_dirent+0x8/0xc8) from [<c00e9dc0>] (sysfs_get_dirent+0x28/0x74)
+[<c00e9dc0>] (sysfs_get_dirent+0x28/0x74) from [<c00eb16c>] (sysfs_unmerge_group+0x18/0x74)
+[<c00eb16c>] (sysfs_unmerge_group+0x18/0x74) from [<c01f43e4>] (dpm_sysfs_remove+0xc/0x34)
+[<c01f43e4>] (dpm_sysfs_remove+0xc/0x34) from [<c01edb04>] (device_del+0x44/0x178)
+[<c01edb04>] (device_del+0x44/0x178) from [<c01f1b8c>] (platform_device_del+0x18/0x58)
+[<c01f1b8c>] (platform_device_del+0x18/0x58) from [<c01f1e28>] (platform_device_unregister+0xc/0x18)
+[<c01f1e28>] (platform_device_unregister+0xc/0x18) from [<bf0010c8>] (thinklcdml_exit+0x1c/0x2c [thinklcdml])
+[<bf0010c8>] (thinklcdml_exit+0x1c/0x2c [thinklcdml]) from [<c005a610>] (sys_delete_module+0x1e4/0x280)
+[<c005a610>] (sys_delete_module+0x1e4/0x280) from [<c000e080>] (ret_fast_syscall+0x0/0x30)
+Code: e1a00004 e8bd81fc e92d41f3 e2913000 (e1d0c3b4)
+---[ end trace 9adbb5107b5c4112 ]---
+Segmentation fault
+   #+END_EXAMPLE
+** TODO Parameters
+   The parameters are =fb_hard=, =fb_memsize= and =fb_addr=. There is
+   no guarantee that they work and they are undocumented. This will
+   probably be resolved while creating the load script but test this
+   around a bit.
