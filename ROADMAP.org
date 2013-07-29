@@ -1,0 +1,7 @@
+* Roadmap
+  Stuff to be done.
+** TODO Options
+   The options for this are hardcoded and pathetic. Fix this.
+** TODO Interrupts
+   There is an interrupt system that I have no Idea how it works and
+   how it should work. Figure this one out.

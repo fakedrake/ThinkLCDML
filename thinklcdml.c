@@ -32,7 +32,7 @@
 // KEYWORDS   :
 // PURPOSE    : ThinkLCDML kernel module
 // DEPARTMENT :
-// AUTHOR     : IS, NS
+// AUTHOR     : Chris "fakedrake" Perivolaropoulos
 // GENERATION :
 // RECEIVER   :
 // NOTES      :
@@ -211,6 +211,7 @@ static int thinklcdml_cursor(struct fb_info *info, struct fb_cursor *cursor);
 #endif
 
 
+/* Debug info of registers. */
 static void dump_regs( struct thinklcdml_par *par, int layer)
 {
     LVL_DBG (3, "*** ThinkLCDML register dump!***\n");
@@ -236,20 +237,20 @@ static void dump_regs( struct thinklcdml_par *par, int layer)
 
 
 static struct fb_ops thinklcdml_ops = {
-    .owner		    = THIS_MODULE,
-    .fb_check_var	= thinklcdml_check_var,
-    .fb_set_par	    = thinklcdml_set_par,
-    .fb_setcolreg	= thinklcdml_setcolreg,
-    .fb_pan_display	= thinklcdml_pan_display,
-    .fb_fillrect	= cfb_fillrect,
-    .fb_copyarea	= cfb_copyarea,
-    .fb_imageblit	= cfb_imageblit,
-    .fb_mmap    	= thinklcdml_mmap,
-    .fb_blank	    = thinklcdml_blank,
-    .fb_ioctl    	= thinklcdml_ioctl,
+    .owner			    = THIS_MODULE,
+    .fb_check_var		    = thinklcdml_check_var,
+    .fb_set_par			    = thinklcdml_set_par,
+    .fb_setcolreg		    = thinklcdml_setcolreg,
+    .fb_pan_display		    = thinklcdml_pan_display,
+    .fb_fillrect		    = cfb_fillrect,
+    .fb_copyarea		    = cfb_copyarea,
+    .fb_imageblit		    = cfb_imageblit,
+    .fb_mmap			    = thinklcdml_mmap,
+    .fb_blank			    = thinklcdml_blank,
+    .fb_ioctl			    = thinklcdml_ioctl,
 
 #if TLCD_CURSOR > 0
-    .fb_cursor	= thinklcdml_cursor,
+    .fb_cursor = thinklcdml_cursor,
 #endif
 };
 
@@ -378,6 +379,8 @@ static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *i
     return 0;
 }
 
+
+/* Apply the registers according to the par of this info. */
 static int thinklcdml_set_par(struct fb_info *info)
 {
     struct thinklcdml_par *par = info->par;
@@ -399,10 +402,17 @@ static int thinklcdml_set_par(struct fb_info *info)
     think_writel(par->regs, TLCD_REG_BACKPORCHXY,  XY16TOREG32(info->var.xres + 257, info->var.yres + 46));
 
     switch(info->var.bits_per_pixel) {
-    case  8: info->fix.visual = info->var.red.offset ? FB_VISUAL_TRUECOLOR : FB_VISUAL_PSEUDOCOLOR; break;
-    case 16: info->fix.visual = FB_VISUAL_TRUECOLOR; break;
-    case 32: info->fix.visual = FB_VISUAL_TRUECOLOR; break;
-    default:LVL_DBG (3, "unable to determine bits per pixel...\n");
+    case  8:
+	info->fix.visual = info->var.red.offset ? FB_VISUAL_TRUECOLOR : FB_VISUAL_PSEUDOCOLOR;
+	break;
+    case 16:
+ 	info->fix.visual = FB_VISUAL_TRUECOLOR;
+	break;
+    case 32:
+	info->fix.visual = FB_VISUAL_TRUECOLOR;
+	break;
+    default:
+	LVL_DBG (3, "unable to determine bits per pixel...\n");
 	return -EINVAL;
     }
 
@@ -674,6 +684,8 @@ static int thinklcdml_cursor(struct fb_info *info, struct fb_cursor *cursor)
 }
 #endif
 
+
+/* This does not clear the framebuffer, just the screen. */
 static int thinklcdml_blank(int blank_mode, struct fb_info *info)
 {
     struct thinklcdml_par *par = info->par;

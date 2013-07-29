@@ -1,8 +1,8 @@
 #ifndef __THINKLCDML_H__
 #define __THINKLCDML_H__
 
-#define TLCDML_LAYERS_NUMBER 2 // a makefile seds this line to make the devices
-#define TLCDML_MAJOR_NUMBER 0
+#define TLCDML_LAYERS_NUMBER 1 // a makefile seds this line to make the devices
+#define TLCDML_MAJOR_NUMBER 29
 
 // ThinkLCD hardware constants
 #define TLCD_PHYSICAL_BASE	0x30000000	///< Memory mapped IO base address
