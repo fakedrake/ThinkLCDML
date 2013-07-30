@@ -61,8 +61,8 @@ MODULE_LICENSE("GPL");
 // Uncomment this to enable polling for vsync
 //#define TLCD_POLL_VSYNC
 
-//#define TLCD_DEBUG
-//#define TLCD_DEBUG_PROCENTRY
+#define TLCD_DEBUG
+#define TLCD_DEBUG_PROCENTRY
 
 #define OL(info) (MINOR(info->dev->devt))
 
@@ -192,6 +192,7 @@ static struct tlcdml_fb_data {
 
 static unsigned int fb_memsize __initdata = 0;
 static unsigned int fb_hard = 0; // fb_hard means: 0, from __get_free_pages. 1, ioremap. 2, no allocation (see thinklcdml_setfbmem)
+static unsigned int physical_register_base __initdata = TLCD_PHYSICAL_BASE;
 static unsigned long fb_addr __initdata = 0;
 static struct fb_var_screeninfo default_var __initdata;
 static unsigned long virtual_regs_base = NULL, color_mode = 0; // color mode defaults to LUT8
@@ -1012,7 +1013,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
     info->fix             = thinklcdml_fix;
     info->fix.smem_start  = physical_start;
     info->fix.smem_len    = fb_memsize;
-    info->fix.mmio_start  = TLCD_PHYSICAL_BASE;
+    info->fix.mmio_start  = physical_register_base; /* TLCD_PHYSICAL_BASE; */
     info->fix.mmio_len    = TLCD_MMIOALLOC;
     info->fix.line_length = get_line_length(info->var.xres_virtual, info->var.bits_per_pixel);if(!info->fix.line_length) LVL_DBG (3, "attempting to initalize 0 line-length in layer %d\n", drvdata->fb_num);
     info->pseudo_palette  = par->pseudo_palette;
@@ -1067,11 +1068,13 @@ static int __init thinklcdml_probe(struct platform_device *device)
 
     if (fb_hard) {
 	/* got framebuffer base address from argument list */
-	/* In this case support for only one layer. TODO some trickery to support more layers */
+	/* In this case support for only one layer. TODO some trickery
+	 * to support more layers */
 	PRINT_I("Using specificed framebuffer base address: 0x%08lx\n", fb_addr);
 	physical_start[0] = fb_addr;
 
-	/* ask from the kernel to reserve that physical memory range for us; not really necessary, but stronly recommended */
+	/* ask from the kernel to reserve that physical memory range
+	 * for us; not really necessary, but stronly recommended */
 	if (!request_mem_region(physical_start[0], fb_memsize, device->name)) {
 	    PRINT_E("Request mem region failed\n");
 	    return -ENOMEM;
@@ -1088,18 +1091,25 @@ static int __init thinklcdml_probe(struct platform_device *device)
     } else {
 	/* allocate our frambuffer memory
 	 *
-	 * if the following fails, try to configure your kernel with CONFIG_FORCE_MAX_ZONEORDER;
-	 * as of writing this, MAX_ORDER is configured as 11, which allows a maximum alloc of 4MB */
+	 * if the following fails, try to configure your kernel with
+	 * CONFIG_FORCE_MAX_ZONEORDER; as of writing this, MAX_ORDER
+	 * is configured as 11, which allows a maximum alloc of 4MB */
 	for (alloc_layers = 0; alloc_layers < TLCDML_LAYERS_NUMBER; alloc_layers++) {
+
+	    /* GFP_KERNEL means we can do whatever we want with this
+	     * memory. There are no real other options uless you are
+	     * doing something fancy. */
 	    virtual_start[alloc_layers] = (unsigned long) __get_free_pages(GFP_KERNEL, get_order(fb_memsize));
 	    if (!virtual_start[alloc_layers]) {
 		PRINT_E("Unable to allocate framebuffer:%u memory (%u bytes order:%u MAX_ORDER:%u)\n", alloc_layers, fb_memsize, get_order(fb_memsize), MAX_ORDER);
 		if (!alloc_layers) return -ENOMEM;
 	    }
+	    PRINT_D("Successfully allocated layers.");
 
 	    physical_start[alloc_layers] = __pa(virtual_start[alloc_layers]);
 
-	    /* set page reserved so that mmap will work; this is necessary since we'll be remapping normal memory */
+	    /* Set page reserved so that mmap will work; this is
+	     * necessary since we'll be remapping normal memory */
 	    for (page = virtual_start[alloc_layers]; page < PAGE_ALIGN(virtual_start[alloc_layers] + fb_memsize); page += PAGE_SIZE) {
 		SetPageReserved(virt_to_page((void *)page));
 	    }
@@ -1112,18 +1122,18 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	PRINT_I("VRAM fb%u PA:0x%08lx -> VA:0x%lx len:%u\n", i, physical_start[i], virtual_start[i], fb_memsize);
     }
 
-    virtual_regs_base = (unsigned long)ioremap_nocache(TLCD_PHYSICAL_BASE, TLCD_MMIOALLOC);
+    virtual_regs_base = (unsigned long)ioremap_nocache(physical_register_base, TLCD_MMIOALLOC);
     if (!virtual_regs_base) {
-	PRINT_E("MMIO remap failed\n");
+	PRINT_E("MMIO remap for register file failed\n");
 	goto err_fb_mem_alloc;
     } else
-	PRINT_I("MMIO PA:0x%08x -> VA:0x%08x len:%u\n", TLCD_PHYSICAL_BASE, virtual_regs_base, TLCD_MMIOALLOC);
+	PRINT_I("MMIO for register file PA:0x%08x -> VA:0x%08x len:%u\n", physical_register_base, virtual_regs_base, TLCD_MMIOALLOC);
 
     think_writel(virtual_regs_base, TLCD_REG_MODE, TLCD_MODE);;
 
 
-    /* allocate the framebuffer */
-    for (i=0; i<alloc_layers; i++) {
+    /* Register the framebuffer */
+    for (i=0; i < alloc_layers; i++) {
 	if (thinklcdml_add_layer(device, physical_start[i], virtual_start[i])) {
 	    PRINT_E("Failed to register layer %d\n",i);
 	    goto err_reg_map;
@@ -1291,6 +1301,9 @@ module_param(fb_memsize, int, 0644);
 MODULE_PARM_DESC(fb_memsize, "Framebuffer memory size");
 module_param(fb_addr, ulong, 0644);
 MODULE_PARM_DESC(fb_addr, "Framebuffer memory base (only used if fb_hard=1)");
+module_param(physical_register_base, ulong, 0644);
+MODULE_PARM_DESC(physical_register_base, "Register base.");
+
 
 MODULE_AUTHOR("Think Silicon Ltd");
 MODULE_DESCRIPTION("ThinkLCDML device driver");

@@ -2,10 +2,9 @@
 #define __THINKLCDML_H__
 
 #define TLCDML_LAYERS_NUMBER 1 // a makefile seds this line to make the devices
-#define TLCDML_MAJOR_NUMBER 29
 
 // ThinkLCD hardware constants
-#define TLCD_PHYSICAL_BASE	0x30000000	///< Memory mapped IO base address
+#define TLCD_PHYSICAL_BASE	0x6c000000	///< Memory mapped IO base address
 #define TLCD_MMIOALLOC		0x1000		///< Register file allocation length in bytes
 #define TLCD_PALETTE_OFFSET	0x400		///< Palette offset in bytes
 #define TLCD_PALETTE_COLORS	256		///< Number of palette colors
