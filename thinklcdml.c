@@ -465,7 +465,7 @@ static int thinklcdml_set_par(struct fb_info *info)
     mode_reg = TLCD_CONFIG_ENABLE | (mode_reg & ~0x3) | par->mode;
     //test mode lcd
 
-    PRINT_D("%p != %p\n", virtual_regs_base, info->par);
+    PRINT_D("%p != %p\n", virtual_regs_base, par->regs);
     think_writel (virtual_regs_base, TLCD_REG_MODE , 0x80000000);
     think_writel (virtual_regs_base, TLCD_REG_CLKCTRL, 0x00000402);
     think_writel (virtual_regs_base, TLCD_REG_BGCOLOR , 0xFFFF0000);
@@ -1010,7 +1010,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
 	return 1;
     }
     par = info->par;
-    info->par->regs = virtual_regs_base;
+    par->regs = virtual_regs_base;
 
     /* initialize register file */
     think_writel (par->regs, TLCD_REG_LAYER_SCALEY(drvdata->fb_num), 0x4000);
