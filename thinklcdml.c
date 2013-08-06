@@ -382,6 +382,9 @@ static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *i
 }
 
 
+
+
+
 /* Apply the registers according to the par of this info. */
 static int thinklcdml_set_par(struct fb_info *info)
 {
@@ -394,14 +397,16 @@ static int thinklcdml_set_par(struct fb_info *info)
     PRINT_D("\tred:%u:%u green:%u:%u blue:%u:%u transp:%u:%u\n", info->var.red.offset, info->var.red.length, info->var.green.offset, info->var.green.length, info->var.blue.offset, info->var.blue.length, info->var.transp.offset, info->var.transp.length);
 
     // Reset the registers
+    think_writel (virtual_regs_base,0x40 , 0x00001000);
+    //think_writel(par->regs, TLCD_REG_LAYER0_STRIDE(OL(info)) , 0x00001000 );
     think_writel(par->regs, TLCD_REG_LAYER_STARTXY(OL(info)) , 0x0 );
     think_writel(par->regs, TLCD_REG_LAYER_RESXY(OL(info)),  XY16TOREG32(info->var.xres +   0, info->var.yres +  0));
     think_writel(par->regs, TLCD_REG_RESXY,         XY16TOREG32(info->var.xres +   0, info->var.yres +  0));
     think_writel(par->regs, TLCD_REG_LAYER_SIZEXY(OL(info)), XY16TOREG32(info->var.xres +   0, info->var.yres +  0));
 
-    think_writel(par->regs, TLCD_REG_FRONTPORCHXY, XY16TOREG32(info->var.xres +  40, info->var.yres + 10));
-    think_writel(par->regs, TLCD_REG_BLANKINGXY,   XY16TOREG32(info->var.xres +  41, info->var.yres + 11));
-    think_writel(par->regs, TLCD_REG_BACKPORCHXY,  XY16TOREG32(info->var.xres + 257, info->var.yres + 46));
+    think_writel(par->regs, TLCD_REG_FRONTPORCHXY, XY16TOREG32(info->var.xres +  24, info->var.yres + 3));
+    think_writel(par->regs, TLCD_REG_BLANKINGXY,   XY16TOREG32(info->var.xres +  160, info->var.yres + 9));
+    think_writel(par->regs, TLCD_REG_BACKPORCHXY,  XY16TOREG32(info->var.xres + 304, info->var.yres + 38));
 
     switch(info->var.bits_per_pixel) {
     case  8:
@@ -453,15 +458,31 @@ static int thinklcdml_set_par(struct fb_info *info)
 	par->mode = mode;
 	PRINT_D("Detected color mode is %u\n", par->mode);
     }
+    par->mode = mode;
 
     /* set mode in registers */
     mode_reg = think_readl(par->regs, TLCD_REG_MODE) & mask;
     mode_reg = TLCD_CONFIG_ENABLE | (mode_reg & ~0x3) | par->mode;
+    //test mode lcd
+
+    PRINT_D("%p != %p\n", virtual_regs_base, info->par);
+    think_writel (virtual_regs_base, TLCD_REG_MODE , 0x80000000);
+    think_writel (virtual_regs_base, TLCD_REG_CLKCTRL, 0x00000402);
+    think_writel (virtual_regs_base, TLCD_REG_BGCOLOR , 0xFFFF0000);
+    think_writel (virtual_regs_base, TLCD_REG_RESXY, 0x04000300);
+    think_writel (virtual_regs_base, TLCD_REG_FRONTPORCHXY, 0x04200303);
+    think_writel (virtual_regs_base, TLCD_REG_BLANKINGXY, 0x04680306);
+    think_writel (virtual_regs_base,TLCD_REG_BACKPORCHXY, 0x04F80320);
+
+    think_writel (virtual_regs_base,0x2c , 0x00000000); /* XXX: what register is 0x2c? */
+    think_writel(virtual_regs_base, TLCD_REG_LAYER_MODE(0), 0x88ff0102);
+    think_writel (virtual_regs_base,TLCD_REG_LAYER_SIZEXY(0) , 0x04000300);
+    think_writel(virtual_regs_base, TLCD_REG_LAYER_RESXY(0), 0x04000300);
 
     dump_regs(par, OL(info));
 
     LVL_DBG (3, "Actually enabling fb%d\n", OL(info));
-    think_writel(par->regs, TLCD_REG_MODE, mode_reg);
+    //think_writel(par->regs, TLCD_REG_MODE, mode_reg);
     think_writel(par->regs, TLCD_REG_LAYER_MODE(OL(info)), ( (TLCD_CONFIG_ENABLE)|(0xff<<16)|(mode_reg&0xf) ) );
     think_writel(par->regs, TLCD_REG_LAYER_STRIDE(OL(info)), info->fix.line_length);
 
@@ -989,7 +1010,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
 	return 1;
     }
     par = info->par;
-    par->regs = virtual_regs_base;
+    info->par->regs = virtual_regs_base;
 
     /* initialize register file */
     think_writel (par->regs, TLCD_REG_LAYER_SCALEY(drvdata->fb_num), 0x4000);

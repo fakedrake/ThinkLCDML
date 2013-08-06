@@ -4,16 +4,17 @@
 #define TLCDML_LAYERS_NUMBER 1 // a makefile seds this line to make the devices
 
 // ThinkLCD hardware constants
-#define TLCD_PHYSICAL_BASE	0x6c000000	///< Memory mapped IO base address
-#define TLCD_MMIOALLOC		0x1000		///< Register file allocation length in bytes
+#define LCDBASEADDRESS		0x40000000
+#define TLCD_PHYSICAL_BASE	0x40000000	///< Memory mapped IO base address
+#define TLCD_MMIOALLOC		0x100		///< Register file allocation length in bytes
 #define TLCD_PALETTE_OFFSET	0x400		///< Palette offset in bytes
 #define TLCD_PALETTE_COLORS	256		///< Number of palette colors
-#define TLCD_VSYNC_IRQ		5		///< ThinkLCD vsync irq number
+#define TLCD_VSYNC_IRQ		59		///< ThinkLCD vsync irq number
 #define TLCD_ACCEL		0x54736930	///< TSi accelerator code for use in device drivers
 #define TLCD_MODE	(TLCD_CONFIG_ENDIAN | TLCD_CONFIG_AHBLOCK)	///< Default mode bits
 
 // ThinkLCD cursor
-#define TLCD_CURSOR		1		///< 0 to disable cursor, 1 to enable
+#define TLCD_CURSOR		0		///< 0 to disable cursor, 1 to enable
 #define TLCD_CURSOR_IMAGE	0x800		///< Cursor image offset in bytes
 #define TLCD_CURSOR_CLUT	0xA00		///< Cursor color lookup table in bytes
 #define TLCD_CURSOR_WIDTH	32		///< Hardware cursor width
@@ -31,55 +32,55 @@
 #define TLCD_MODE_L8		0x07
 
 // ThinkLCD register file
-#define TLCD_REG_MODE         	 0x000
-#define TLCD_REG_CLKCTRL    	 0x004 // BASEADDRESS0
-#define TLCD_REG_BGCOLOR      	 0x008
-#define TLCD_REG_RESXY        	 0x00c
-#define TLCD_REG_STRIDE       	 0x010
-#define TLCD_REG_FRONTPORCHXY 	 0x014
-#define TLCD_REG_BLANKINGXY   	 0x018
-#define TLCD_REG_BACKPORCHXY  	 0x01c
-#define TLCD_REG_CURSORXY	     0x020
+#define TLCD_REG_MODE         	 0x00 /* 0x80000000 */
+#define TLCD_REG_CLKCTRL    	 0x04 /* 0x00000402 */
+#define TLCD_REG_BGCOLOR      	 0x08 /* 0xFFFF0000 */
+#define TLCD_REG_RESXY        	 0x0c /* 0x04000300 */
+#define TLCD_REG_STRIDE       	 0x10
+#define TLCD_REG_FRONTPORCHXY 	 0x14 /* 0x04200303 */
+#define TLCD_REG_BLANKINGXY   	 0x18 /* 0x04680306 */
+#define TLCD_REG_BACKPORCHXY  	 0x1c /* 0x04F80320 */
+#define TLCD_REG_CURSORXY	 0x20
 
-#define TLCD_REG_LAYER0_MODE     0x030
-#define TLCD_REG_LAYER0_STARTXY  0x034
-#define TLCD_REG_LAYER0_SIZEXY   0x038
-#define TLCD_REG_LAYER0_BASEADDR 0x03c
-#define TLCD_REG_LAYER0_STRIDE   0x040
-#define TLCD_REG_LAYER0_RESXY    0x044
-#define TLCD_REG_LAYER0_SCALEX   0x048
-#define TLCD_REG_LAYER0_SCALEY   0x04c
+#define TLCD_REG_LAYER0_MODE     0x30 /* 0x88ff0102 */
+#define TLCD_REG_LAYER0_STARTXY  0x34 /* 0x04000300 */
+#define TLCD_REG_LAYER0_SIZEXY   0x38
+#define TLCD_REG_LAYER0_BASEADDR 0x3c
+#define TLCD_REG_LAYER0_STRIDE   0x40
+#define TLCD_REG_LAYER0_RESXY    0x44
+#define TLCD_REG_LAYER0_SCALEX   0x48
+#define TLCD_REG_LAYER0_SCALEY   0x4c
 
-#define TLCD_REG_LAYER1_MODE     0x050
-#define TLCD_REG_LAYER1_STARTXY  0x054
-#define TLCD_REG_LAYER1_SIZEXY   0x058
-#define TLCD_REG_LAYER1_BASEADDR 0x05c
-#define TLCD_REG_LAYER1_STRIDE   0x060
-#define TLCD_REG_LAYER1_RESXY    0x064
-#define TLCD_REG_LAYER1_SCALEX   0x068
-#define TLCD_REG_LAYER1_SCALEY   0x06c
+#define TLCD_REG_LAYER1_MODE     0x50
+#define TLCD_REG_LAYER1_STARTXY  0x54
+#define TLCD_REG_LAYER1_SIZEXY   0x58
+#define TLCD_REG_LAYER1_BASEADDR 0x5c
+#define TLCD_REG_LAYER1_STRIDE   0x60
+#define TLCD_REG_LAYER1_RESXY    0x64
+#define TLCD_REG_LAYER1_SCALEX   0x68
+#define TLCD_REG_LAYER1_SCALEY   0x6c
 
-#define TLCD_REG_LAYER2_MODE     0x070
-#define TLCD_REG_LAYER2_STARTXY  0x074
-#define TLCD_REG_LAYER2_SIZEXY   0x078
-#define TLCD_REG_LAYER2_BASEADDR 0x07c
-#define TLCD_REG_LAYER2_STRIDE   0x080
-#define TLCD_REG_LAYER2_RESXY    0x084
-#define TLCD_REG_LAYER2_SCALEX   0x088
-#define TLCD_REG_LAYER2_SCALEY   0x08c
+#define TLCD_REG_LAYER2_MODE     0x70
+#define TLCD_REG_LAYER2_STARTXY  0x74
+#define TLCD_REG_LAYER2_SIZEXY   0x78
+#define TLCD_REG_LAYER2_BASEADDR 0x7c
+#define TLCD_REG_LAYER2_STRIDE   0x80
+#define TLCD_REG_LAYER2_RESXY    0x84
+#define TLCD_REG_LAYER2_SCALEX   0x88
+#define TLCD_REG_LAYER2_SCALEY   0x8c
 
-#define TLCD_REG_LAYER3_MODE     0x090
-#define TLCD_REG_LAYER3_STARTXY  0x094
-#define TLCD_REG_LAYER3_SIZEXY   0x098
-#define TLCD_REG_LAYER3_BASEADDR 0x09c
-#define TLCD_REG_LAYER3_STRIDE   0x0a0
-#define TLCD_REG_LAYER3_RESXY    0x0a4
-#define TLCD_REG_LAYER3_SCALEX   0x0a8
-#define TLCD_REG_LAYER3_SCALEY   0x0ac
+#define TLCD_REG_LAYER3_MODE     0x90
+#define TLCD_REG_LAYER3_STARTXY  0x94
+#define TLCD_REG_LAYER3_SIZEXY   0x98
+#define TLCD_REG_LAYER3_BASEADDR 0x9c
+#define TLCD_REG_LAYER3_STRIDE   0xa0
+#define TLCD_REG_LAYER3_RESXY    0xa4
+#define TLCD_REG_LAYER3_SCALEX   0xa8
+#define TLCD_REG_LAYER3_SCALEY   0xac
 
-#define TLCD_REG_IDREG           0x0f4
-#define TLCD_REG_STATUS          0x0fc
-#define TLCD_REG_INTERRUPT       0x0f8
+#define TLCD_REG_IDREG           0xf4
+#define TLCD_REG_STATUS          0xfc
+#define TLCD_REG_INTERRUPT       0xf8
 
 // Layer parametric
 #define TLCD_REG_LAYER_MODE(i) (0x030 + 0x20*(i)) //    ((i)?(0x030 + 0x20*(i-1)):(0x50))
