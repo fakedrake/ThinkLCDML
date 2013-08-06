@@ -1241,6 +1241,8 @@ int __init thinklcdml_init(void)
     int ret;
 #ifndef MODULE
     char *options = NULL;
+#else
+    char *options = module_options
 #endif
 
     PRINT_PROC_ENTRY;
@@ -1256,9 +1258,9 @@ int __init thinklcdml_init(void)
     /* get options from kernel command line and setup the driver */
     if (fb_get_options("thinklcdml", &options))
 	return -ENODEV;
+#endif
 
     thinklcdml_setup(options);
-#endif
 
     /* if the memory size has not been specified in the kernel command line try to allocate as much as we need */
     if (fb_memsize == 0)
@@ -1303,7 +1305,8 @@ module_param(fb_addr, ulong, 0644);
 MODULE_PARM_DESC(fb_addr, "Framebuffer memory base (only used if fb_hard=1)");
 module_param(physical_register_base, ulong, 0644);
 MODULE_PARM_DESC(physical_register_base, "Register base.");
-
+module_param(module_options, stringp, 0000);
+MODULE_PARM_DESC(module_options, "Options just like in boot time.")
 
 MODULE_AUTHOR("Think Silicon Ltd");
 MODULE_DESCRIPTION("ThinkLCDML device driver");
