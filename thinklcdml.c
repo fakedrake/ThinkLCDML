@@ -196,6 +196,7 @@ static unsigned int physical_register_base __initdata = TLCD_PHYSICAL_BASE;
 static unsigned long fb_addr __initdata = 0;
 static struct fb_var_screeninfo default_var __initdata;
 static unsigned long virtual_regs_base = NULL, color_mode = 0; // color mode defaults to LUT8
+static char* module_options __initdata = NULL;
 
 static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info);
 static int thinklcdml_set_par(struct fb_info *info);
@@ -708,7 +709,6 @@ static int thinklcdml_blank(int blank_mode, struct fb_info *info)
     return 0;
 }
 
-#ifndef MODULE
 static int __init thinklcdml_setup(char *options)
 {
     char *this_opt;
@@ -845,7 +845,6 @@ static int __init thinklcdml_setup(char *options)
 
     return 1;
 }
-#endif
 
 static irqreturn_t thinklcdml_vsync_interrupt(int irq, void *ptr)
 {
@@ -1242,7 +1241,7 @@ int __init thinklcdml_init(void)
 #ifndef MODULE
     char *options = NULL;
 #else
-    char *options = module_options
+    char *options = module_options;
 #endif
 
     PRINT_PROC_ENTRY;
@@ -1305,8 +1304,8 @@ module_param(fb_addr, ulong, 0644);
 MODULE_PARM_DESC(fb_addr, "Framebuffer memory base (only used if fb_hard=1)");
 module_param(physical_register_base, ulong, 0644);
 MODULE_PARM_DESC(physical_register_base, "Register base.");
-module_param(module_options, stringp, 0000);
-MODULE_PARM_DESC(module_options, "Options just like in boot time.")
+module_param(module_options, charp, 0000);
+MODULE_PARM_DESC(module_options, "Options just like in boot time.");
 
 MODULE_AUTHOR("Think Silicon Ltd");
 MODULE_DESCRIPTION("ThinkLCDML device driver");
