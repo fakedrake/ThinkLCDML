@@ -113,76 +113,76 @@ struct thinklcdml_par {
 };
 
 static struct fb_var_screeninfo m640x480 __initdata = {
-    .xres =			640,
-    .yres =			480,
-    .xres_virtual =		640,
-    .yres_virtual =		480,
-    .pixclock = 		40000,
-    .left_margin =		48,
-    .right_margin =		16,
-    .upper_margin =		31,
-    .lower_margin =		11,
-    .hsync_len =		96,
-    .vsync_len =		2,
-    /* .bits_per_pixel =	8, */
+    .xres	    = 640,
+    .yres	    = 480,
+    .xres_virtual   = 640,
+    .yres_virtual   = 480,
+    .pixclock	    = 40000,
+    .left_margin    = 48,
+    .right_margin   = 16,
+    .upper_margin   = 31,
+    .lower_margin   = 11,
+    .hsync_len	    = 96,
+    .vsync_len	    = 2,
+    .bits_per_pixel = 8,
     /* .red.offset =		0, */
 };
 
 static struct fb_var_screeninfo m800x480 __initdata = {
-    .xres =			800,
-    .yres =			480,
-    .xres_virtual =		800,
-    .yres_virtual =		480,
-    .pixclock = 		71420,
-    .left_margin =		216,
-    .right_margin =		16,
-    .upper_margin =		35,
-    .lower_margin =		10,
-    .hsync_len =		48,
-    .vsync_len =		3,
-    /* .bits_per_pixel =	8, */
+    .xres	    = 800,
+    .yres	    = 480,
+    .xres_virtual   = 800,
+    .yres_virtual   = 480,
+    .pixclock	    = 71420,
+    .left_margin    = 216,
+    .right_margin   = 16,
+    .upper_margin   = 35,
+    .lower_margin   = 10,
+    .hsync_len	    = 48,
+    .vsync_len	    = 3,
+    .bits_per_pixel = 8,
     /* .red.offset =		0, */
 };
 
 static struct fb_var_screeninfo m800x600 __initdata = {
-    .xres =			800,
-    .yres =			600,
-    .xres_virtual =		800,
-    .yres_virtual =		600,
-    .pixclock =		25000,
-    .left_margin =		88,
-    .right_margin =		40,
-    .upper_margin =		23,
-    .lower_margin =		1,
-    .hsync_len =		128,
-    .vsync_len =		4,
-    /* .bits_per_pixel =	8, */
+    .xres	    = 800,
+    .yres	    = 600,
+    .xres_virtual   = 800,
+    .yres_virtual   = 600,
+    .pixclock	    = 25000,
+    .left_margin    = 88,
+    .right_margin   = 40,
+    .upper_margin   = 23,
+    .lower_margin   = 1,
+    .hsync_len	    = 128,
+    .vsync_len	    = 4,
+    .bits_per_pixel = 8,
     /* .red.offset =		0, */
 };
 
 static struct fb_var_screeninfo m1024x768 __initdata = {
-    .xres =			1024,
-    .yres =			768,
-    .xres_virtual =		1024,
-    .yres_virtual =		768,
-    .pixclock =		15385,
-    .left_margin =		160,
-    .right_margin =		24,
-    .upper_margin =		29,
-    .lower_margin =		3,
-    .hsync_len =		136,
-    .vsync_len =		6,
-    /* .bits_per_pixel =	8, */
+    .xres	    = 1024,
+    .yres	    = 768,
+    .xres_virtual   = 1024,
+    .yres_virtual   = 768,
+    .pixclock	    = 15385,
+    .left_margin    = 160,
+    .right_margin   = 24,
+    .upper_margin   = 29,
+    .lower_margin   = 3,
+    .hsync_len	    = 136,
+    .vsync_len	    = 6,
+    .bits_per_pixel = 32,
     /* .red.offset =		0, */
 };
 
 static struct fb_fix_screeninfo thinklcdml_fix __initdata = {
-    .id =			"TSi ThinkLCDML",
-    .type =			FB_TYPE_PACKED_PIXELS,
-    .xpanstep =		1,
-    .ypanstep =		1,
-    .ywrapstep =		0,
-    .accel =		TLCD_ACCEL,
+    .id	       = "TSi ThinkLCDML",
+    .type      = FB_TYPE_PACKED_PIXELS,
+    .xpanstep  = 1,
+    .ypanstep  = 1,
+    .ywrapstep = 0,
+    .accel     = TLCD_ACCEL,
 };
 
 static struct tlcdml_fb_data {
