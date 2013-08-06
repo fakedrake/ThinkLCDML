@@ -22,30 +22,19 @@
 
 *** Parameters
 **** =module_options=
-     There are a two ways to use this parameter and it is really all
-     you will ever need.
-
-     One is to provide a resolution and let the driver take care of
-     the defaults. The available resolutions are:
-
-     - 1024x768
-     - 800x600
-     - 640x480
-     - 800x480
-
-     The other way is to start the command with =custom= like and
-     follow it by a =:= separated list of values. You may leave a
+     A valid value is a =:= separated list of values. You may leave a
      value blank for default.
 
      Note that in the kernel options we have comma separated values.
 
       #+BEGIN_EXAMPLE
-      custom:<pixclock>:<xres>:<right_margin>:<hsync_len>:<left_margin>:<yres>:<lower_margin>:<vsync_len>:<upper_margin>:<color-code>:<fb_memsize>:<fb_addr>
+      <defaults>:<pixclock>:<xres>:<right_margin>:<hsync_len>:<left_margin>:<yres>:<lower_margin>:<vsync_len>:<upper_margin>:<color-code>:<fb_memsize>:<fb_addr>
       #+END_EXAMPLE
 
      The values are all unsigned long ints except for color-code that
      is a string (no ="=):
 
+     - defaults :: A set of defaults.
      - pixclock :: Miliseconds.
      - xres :: X resolution
      - hsync_len :: <todo>
@@ -65,6 +54,13 @@
        - L8
      - fb_memsize :: Size of the memory.
      - fb_addr :: Address of framebuffer.
+
+     The defaults parameter may take one fo the following values:
+
+     - 1024x768
+     - 800x600
+     - 640x480
+     - 800x480
 
 * Roadmap
 ** TODO Major Number
