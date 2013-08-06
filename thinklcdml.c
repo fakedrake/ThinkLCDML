@@ -709,7 +709,7 @@ static int thinklcdml_blank(int blank_mode, struct fb_info *info)
     return 0;
 }
 
-static int __init thinklcdml_setup(char *options)
+static int __init thinklcdml_setup(char *options, char* separator)
 {
     char *this_opt;
     int custom = 0;
@@ -723,7 +723,7 @@ static int __init thinklcdml_setup(char *options)
 	return 1;
     }
 
-    while ((this_opt = strsep(&options, ",")) != NULL) {
+    while ((this_opt = strsep(&options, separator)) != NULL) {
 	if (!*this_opt)
 	    continue;
 
@@ -1239,9 +1239,9 @@ int __init thinklcdml_init(void)
 {
     int ret;
 #ifndef MODULE
-    char *options = NULL;
+    char *options = NULL, separator = ",";
 #else
-    char *options = module_options;
+    char *options = module_options, separator = ":";
 #endif
 
     PRINT_PROC_ENTRY;
@@ -1259,7 +1259,7 @@ int __init thinklcdml_init(void)
 	return -ENODEV;
 #endif
 
-    thinklcdml_setup(options);
+    thinklcdml_setup(options, separator);
 
     /* if the memory size has not been specified in the kernel command line try to allocate as much as we need */
     if (fb_memsize == 0)

@@ -34,11 +34,13 @@
      - 800x480
 
      The other way is to start the command with =custom= like and
-     follow it by a comma separated list of values. You may leave a
+     follow it by a =:= separated list of values. You may leave a
      value blank for default.
 
+     Note that in the kernel options we have comma separated values.
+
       #+BEGIN_EXAMPLE
-      custom,<pixclock>,<xres>,<right_margin>,<hsync_len>,<left_margin>,<yres>,<lower_margin>,<vsync_len>,<upper_margin>,<color-code>,<fb_memsize>,<fb_addr>
+      custom:<pixclock>:<xres>:<right_margin>:<hsync_len>:<left_margin>:<yres>:<lower_margin>:<vsync_len>:<upper_margin>:<color-code>:<fb_memsize>:<fb_addr>
       #+END_EXAMPLE
 
      The values are all unsigned long ints except for color-code that
