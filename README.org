@@ -8,6 +8,10 @@
    need to have =arm-xilinx-gnueabi-= gcc setup and in your
    =PATH=. You may run =make host= to build for the host system.
 
+   *Update:* You will probably need xilinx bootstrap to build this
+    one. Just tell the builder where the root of xlnx-bootsrap is and
+    it will do the rest as long as you have working linux in there.
+
 ** Usage
    The thing with this driver is that it doesn't really have very good
    defaults and the load script is miserable so for now you should

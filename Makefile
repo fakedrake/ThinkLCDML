@@ -1,8 +1,12 @@
 obj-m := thinklcdml.o
 # nemaweaver-y := nema.o
 
-export CROSS_COMPILER:=/homes/cperivol/CodeSourcery/Sourcery_CodeBench_Lite_for_Xilinx_GNU_Linux/bin/arm-xilinx-linux-gnueabi
-export LINUX_HEADERS:=/homes/cperivol/Projects/Nema/ZYNQ/linux-xlnx/
+XILINX_BOOTSTRAP=/home/fakedrake/Projects/ThinkSilicon/xilinx-zynq-bootstrap
+GNU_TOOLS=$(XILINX_BOOTSTRAP)/sources/gnu-tools-archive/GNU_Tools
+
+export PATH:=$(PATH):$(GNU_TOOLS)/bin
+export CROSS_COMPILER:=$(GNU_TOOLS)/bin/arm-xilinx-linux-gnueabi
+export LINUX_HEADERS:=$(XILINX_BOOTSTRAP)/sources/linux-git/
 # LINUX_HEADERS=/usr/src/linux-headers-$(shell uname -r)
 
 all:
