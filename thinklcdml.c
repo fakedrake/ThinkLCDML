@@ -89,9 +89,8 @@ MODULE_LICENSE("GPL");
 #define PRINT_PROC_ENTRY	do {} while (0)
 #endif
 
-#define think_readl(base, offset) fb_readl((u32 __iomem *)((base) + (offset)))
-#define think_writel(base, offset, val) fb_writel(val, (u32 __iomem *)((unsigned long)(base) + (offset)))
-#define think_writel_D(base, offset, val) do {PRINT_D("%p:0x%08x\n", (base) + (offset), (val)); think_writel(base, offset, val);} while (0)
+#define think_readl(base, offset) (readl((u32*)((base) + (offset))))
+#define think_writel(base, offset, val) (writel((val), (u32*)((unsigned long)(base) + (offset))))
 
 #define XY16TOREG32(x, y) ((x) << 16 | ((y) & 0xffff))
 #define CLAMP255(i) ( ((i)<0) ? 0 : ((i)>255) ? 255 : (i) )
@@ -1156,7 +1155,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	PRINT_I("VRAM fb%u PA:0x%08lx -> VA:0x%lx len:%u\n", i, physical_start[i], virtual_start[i], fb_memsize);
     }
 
-    if (!request_mem_region(physical_register_base, TLCD_MMIOALLOC, "tlcdml")) {
+    if (!request_mem_region(physical_register_base, TLCD_MMIOALLOC, device->name)) {
 	PRINT_E("Request for MMIO for register file was negative.\n");
 	goto err_fb_mem_alloc;
     }
