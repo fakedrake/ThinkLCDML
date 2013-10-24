@@ -84,7 +84,7 @@ MODULE_LICENSE("GPL");
 #endif
 
 #if defined(TLCD_DEBUG_PROCENTRY) || defined(TLCD_DEBUG)
-#define PRINT_PROC_ENTRY	do { printk("* ThinkLCDML: %s", __FUNCTION__); } while (0)
+#define PRINT_PROC_ENTRY	do { printk("* ThinkLCDML: %s\n", __FUNCTION__); } while (0)
 #else
 #define PRINT_PROC_ENTRY	do {} while (0)
 #endif
@@ -271,9 +271,9 @@ static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *i
     u_long line_length;
 
     PRINT_PROC_ENTRY;
-    PRINT_D("\tres:%ux%u virtual:%ux%u bpp:%u\n", var->xres, var->yres, var->xres_virtual, var->yres_virtual, var->bits_per_pixel);
-    PRINT_D("\tred:%u:%u green:%u:%u blue:%u:%u transp:%u:%u\n", var->red.offset, var->red.length, var->green.offset, var->green.length, var->blue.offset, var->blue.length, var->transp.offset, var->transp.length);
-    PRINT_D("\tnonstd:%u activate:%u grayscale:%u vmode:0x%08x\n", var->nonstd, var->activate, var->grayscale, var->vmode);
+    /* PRINT_D("\tres:%ux%u virtual:%ux%u bpp:%u\n", var->xres, var->yres, var->xres_virtual, var->yres_virtual, var->bits_per_pixel); */
+    /* PRINT_D("\tred:%u:%u green:%u:%u blue:%u:%u transp:%u:%u\n", var->red.offset, var->red.length, var->green.offset, var->green.length, var->blue.offset, var->blue.length, var->transp.offset, var->transp.length); */
+    /* PRINT_D("\tnonstd:%u activate:%u grayscale:%u vmode:0x%08x\n", var->nonstd, var->activate, var->grayscale, var->vmode); */
 
     /*  FB_VMODE_CONUPDATE and FB_VMODE_SMOOTH_XPAN are equal!
      *  as FB_VMODE_SMOOTH_XPAN is only used internally */
@@ -997,7 +997,11 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
     struct thinklcdml_par *par;
     struct tlcdml_fb_data *drvdata = platform_get_drvdata(device);
 
+    PRINT_PROC_ENTRY;
 
+    PRINT_D("Allocating framebuffer infos.\n");
+    /* framebuffer alloc allocates infos and you tell it how much
+     * extra space you need for pars. */
     drvdata->infos[drvdata->fb_num] = framebuffer_alloc(sizeof(struct thinklcdml_par), &device->dev);
     if (!drvdata->infos[drvdata->fb_num]) {
 	PRINT_E("Failed to allocate memory with framebuffer_alloc\n");
@@ -1014,6 +1018,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
     par->regs = virtual_regs_base;
 
     /* initialize register file */
+    PRINT_D("Initializing register file.\n");
     think_writel (par->regs, TLCD_REG_LAYER_SCALEY(drvdata->fb_num), 0x4000);
     think_writel (par->regs, TLCD_REG_LAYER_SCALEX(drvdata->fb_num), 0x4000);
     think_writel(par->regs, TLCD_REG_LAYER_BASEADDR(drvdata->fb_num), physical_start);
@@ -1044,6 +1049,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
 	| FBINFO_PARTIAL_PAN_OK;
 
     /* allocate a color map */
+    PRINT_D("Allocating color map.\n");
     retval = fb_alloc_cmap(&info->cmap, 256, 0);
     if (retval < 0) {
 	PRINT_E("Failed to allocate memory with fb_alloc_cmap\n");
@@ -1051,6 +1057,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
     }
 
     /* finally, register our framebuffer */
+    PRINT_D("Register framebuffer.\n");\
     retval = register_framebuffer(info);
     if (retval < 0) {
 	PRINT_E("Failed to register framebuffer\n");
@@ -1088,6 +1095,8 @@ static int __init thinklcdml_probe(struct platform_device *device)
     // fb_hard should be 0 or 1 here..
 
     if (fb_hard) {
+	PRINT_D("Static allocation of framebuffers.\n");
+
 	/* got framebuffer base address from argument list */
 	/* In this case support for only one layer. TODO some trickery
 	 * to support more layers */
@@ -1115,6 +1124,8 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	 * if the following fails, try to configure your kernel with
 	 * CONFIG_FORCE_MAX_ZONEORDER; as of writing this, MAX_ORDER
 	 * is configured as 11, which allows a maximum alloc of 4MB */
+	PRINT_D("Dynamic allocation of framebuffers.\n");
+
 	for (alloc_layers = 0; alloc_layers < TLCDML_LAYERS_NUMBER; alloc_layers++) {
 
 	    /* GFP_KERNEL means we can do whatever we want with this
@@ -1125,7 +1136,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
 		PRINT_E("Unable to allocate framebuffer:%u memory (%u bytes order:%u MAX_ORDER:%u)\n", alloc_layers, fb_memsize, get_order(fb_memsize), MAX_ORDER);
 		if (!alloc_layers) return -ENOMEM;
 	    }
-	    PRINT_D("Successfully allocated layers.");
+	    PRINT_D("Successfully allocated layers.\n");
 
 	    physical_start[alloc_layers] = __pa(virtual_start[alloc_layers]);
 
@@ -1134,15 +1145,23 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	    for (page = virtual_start[alloc_layers]; page < PAGE_ALIGN(virtual_start[alloc_layers] + fb_memsize); page += PAGE_SIZE) {
 		SetPageReserved(virt_to_page((void *)page));
 	    }
+	    PRINT_D("Layer pages reserved.\n");
 	}
     }
 
     /* clear out the screen, try to minimize flickering */
     for (i = 0; i<alloc_layers; i++) {
+	PRINT_D("Clearing framebuffer data %d/%d\n", i, alloc_layers);
 	memset((unsigned long *) virtual_start[i], 0, fb_memsize);
 	PRINT_I("VRAM fb%u PA:0x%08lx -> VA:0x%lx len:%u\n", i, physical_start[i], virtual_start[i], fb_memsize);
     }
 
+    if (!request_mem_region(physical_register_base, TLCD_MMIOALLOC, "tlcdml")) {
+	PRINT_E("Request for MMIO for register file was negative.\n");
+	goto err_fb_mem_alloc;
+    }
+
+    PRINT_D("Performing ioremap for registers (physical base: 0x%08x, len: 0x%08x).\n", physical_register_base, TLCD_MMIOALLOC);
     virtual_regs_base = (unsigned long)ioremap_nocache(physical_register_base, TLCD_MMIOALLOC);
     if (!virtual_regs_base) {
 	PRINT_E("MMIO remap for register file failed\n");
@@ -1150,11 +1169,12 @@ static int __init thinklcdml_probe(struct platform_device *device)
     } else
 	PRINT_I("MMIO for register file PA:0x%08x -> VA:0x%08x len:%u\n", physical_register_base, virtual_regs_base, TLCD_MMIOALLOC);
 
-    think_writel(virtual_regs_base, TLCD_REG_MODE, TLCD_MODE);;
-
+    PRINT_D("Setting default modeL 0x%08x\n", TLCD_MODE);
+    think_writel(virtual_regs_base, TLCD_REG_MODE, TLCD_MODE);
 
     /* Register the framebuffer */
     for (i=0; i < alloc_layers; i++) {
+	PRINT_D("Registering framebuffer %d/%d.\n", i+1, alloc_layers);
 	if (thinklcdml_add_layer(device, physical_start[i], virtual_start[i])) {
 	    PRINT_E("Failed to register layer %d\n",i);
 	    goto err_reg_map;
@@ -1164,6 +1184,9 @@ static int __init thinklcdml_probe(struct platform_device *device)
 
     /* initialize the wait object for interrupt */
     init_waitqueue_head(&((struct  thinklcdml_par*)drvdata->infos[0]->par)->wait_vsync);
+
+    PRINT_D("Wait object for vsync interrupts initialized.\n");
+
 
     retval = request_irq(TLCD_VSYNC_IRQ, thinklcdml_vsync_interrupt, IRQF_DISABLED, "thinklcdml vsync", drvdata->infos[0]->par);
     if (retval < 0) {
@@ -1179,6 +1202,9 @@ err_irq_setup:
 
 err_reg_map:
     iounmap((void *)virtual_regs_base);
+
+err_reg_mem_request:
+    release_mem_region(physical_register_base, TLCD_MMIOALLOC);
 
 err_fb_mem_alloc:
     if (fb_hard)
@@ -1207,9 +1233,16 @@ static int thinklcdml_remove(struct platform_device *device)
 
     /* release the interrupt */
     think_writel(par->regs, TLCD_REG_INTERRUPT, 0);
+
+    PRINT_D("Freeing irq...\n");
     free_irq(TLCD_VSYNC_IRQ, par);
 
+    PRINT_D("Unmapping register file...\n");
     iounmap((void *)virtual_regs_base);
+
+    PRINT_D("Releasing register file.\n");
+    release_mem_region(physical_register_base, TLCD_MMIOALLOC);
+
     for (i = 0; i<drvdata->fb_num; i++) {
 	info = drvdata->infos[i];
 
