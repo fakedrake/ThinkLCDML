@@ -78,7 +78,7 @@ MODULE_LICENSE("GPL");
 #endif
 
 #ifdef TLCD_DEBUG
-#define PRINT_D(args...)	do { printk("ThinkLCDML: " args); } while (0)
+#define PRINT_D(fmt, args...)	do { printk("<tlcd>ThinkLCDML: " fmt "</tlcd>\n", ##args); } while (0)
 #else
 #define PRINT_D(args...)	do { } while(0)
 #endif
@@ -216,25 +216,25 @@ static int thinklcdml_cursor(struct fb_info *info, struct fb_cursor *cursor);
 /* Debug info of registers. */
 static void dump_regs( struct thinklcdml_par *par, int layer)
 {
-    PRINT_D("*** ThinkLCDML register dump!***\n");
-    PRINT_D("TLCD_REG_MODE=%p\n", think_readl( par->regs, TLCD_REG_MODE));
-    PRINT_D("TLCD_REG_CLKCTRL=%p\n", think_readl( par->regs, TLCD_REG_CLKCTRL));
-    PRINT_D("TLCD_REG_BGCOLOR=%p\n", think_readl( par->regs, TLCD_REG_BGCOLOR));
-    PRINT_D("TLCD_REG_RESXY=%p\n", think_readl( par->regs, TLCD_REG_RESXY));
-    PRINT_D("TLCD_REG_STRIDE=%p\n", think_readl( par->regs, TLCD_REG_STRIDE));
-    PRINT_D("TLCD_REG_FRONTPORCHXY=%p\n", think_readl( par->regs, TLCD_REG_FRONTPORCHXY));
-    PRINT_D("TLCD_REG_BLANKINGXY=%p\n", think_readl( par->regs, TLCD_REG_BLANKINGXY));
-    PRINT_D("TLCD_REG_BACKPORCHXY=%p\n", think_readl( par->regs, TLCD_REG_BACKPORCHXY));
-    PRINT_D("TLCD_REG_CURSORXY=%p\n", think_readl( par->regs, TLCD_REG_CURSORXY));
+    PRINT_D("*** ThinkLCDML register dump!***");
+    PRINT_D("TLCD_REG_MODE=%p", think_readl( par->regs, TLCD_REG_MODE));
+    PRINT_D("TLCD_REG_CLKCTRL=%p", think_readl( par->regs, TLCD_REG_CLKCTRL));
+    PRINT_D("TLCD_REG_BGCOLOR=%p", think_readl( par->regs, TLCD_REG_BGCOLOR));
+    PRINT_D("TLCD_REG_RESXY=%p", think_readl( par->regs, TLCD_REG_RESXY));
+    PRINT_D("TLCD_REG_STRIDE=%p", think_readl( par->regs, TLCD_REG_STRIDE));
+    PRINT_D("TLCD_REG_FRONTPORCHXY=%p", think_readl( par->regs, TLCD_REG_FRONTPORCHXY));
+    PRINT_D("TLCD_REG_BLANKINGXY=%p", think_readl( par->regs, TLCD_REG_BLANKINGXY));
+    PRINT_D("TLCD_REG_BACKPORCHXY=%p", think_readl( par->regs, TLCD_REG_BACKPORCHXY));
+    PRINT_D("TLCD_REG_CURSORXY=%p", think_readl( par->regs, TLCD_REG_CURSORXY));
 
-    PRINT_D("TLCD_REG_LAYER_MODE(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_MODE(layer) ));
-    PRINT_D("TLCD_REG_LAYER_STARTXY(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
-    PRINT_D("TLCD_REG_LAYER_SIZEXY(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
-    PRINT_D("TLCD_REG_LAYER_BASEADDR(%d)(v)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_BASEADDR(layer) ));
-    PRINT_D("TLCD_REG_LAYER_STRIDE(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_STRIDE(layer) ));
-    PRINT_D("TLCD_REG_LAYER_RESXY(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_RESXY(layer) ));
-    PRINT_D("TLCD_REG_LAYER_SCALEX(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEX(layer) ));
-    PRINT_D("TLCD_REG_LAYER_SCALEY(%d)=%p\n", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEY(layer) ));
+    PRINT_D("TLCD_REG_LAYER_MODE(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_MODE(layer) ));
+    PRINT_D("TLCD_REG_LAYER_STARTXY(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
+    PRINT_D("TLCD_REG_LAYER_SIZEXY(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
+    PRINT_D("TLCD_REG_LAYER_BASEADDR(%d)(v)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_BASEADDR(layer) ));
+    PRINT_D("TLCD_REG_LAYER_STRIDE(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_STRIDE(layer) ));
+    PRINT_D("TLCD_REG_LAYER_RESXY(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_RESXY(layer) ));
+    PRINT_D("TLCD_REG_LAYER_SCALEX(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEX(layer) ));
+    PRINT_D("TLCD_REG_LAYER_SCALEY(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEY(layer) ));
 }
 
 
@@ -271,9 +271,9 @@ static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *i
     u_long line_length;
 
     PRINT_PROC_ENTRY;
-    /* PRINT_D("\tres:%ux%u virtual:%ux%u bpp:%u\n", var->xres, var->yres, var->xres_virtual, var->yres_virtual, var->bits_per_pixel); */
-    /* PRINT_D("\tred:%u:%u green:%u:%u blue:%u:%u transp:%u:%u\n", var->red.offset, var->red.length, var->green.offset, var->green.length, var->blue.offset, var->blue.length, var->transp.offset, var->transp.length); */
-    /* PRINT_D("\tnonstd:%u activate:%u grayscale:%u vmode:0x%08x\n", var->nonstd, var->activate, var->grayscale, var->vmode); */
+    /* PRINT_D("\tres:%ux%u virtual:%ux%u bpp:%u", var->xres, var->yres, var->xres_virtual, var->yres_virtual, var->bits_per_pixel); */
+    /* PRINT_D("\tred:%u:%u green:%u:%u blue:%u:%u transp:%u:%u", var->red.offset, var->red.length, var->green.offset, var->green.length, var->blue.offset, var->blue.length, var->transp.offset, var->transp.length); */
+    /* PRINT_D("\tnonstd:%u activate:%u grayscale:%u vmode:0x%08x", var->nonstd, var->activate, var->grayscale, var->vmode); */
 
     /*  FB_VMODE_CONUPDATE and FB_VMODE_SMOOTH_XPAN are equal!
      *  as FB_VMODE_SMOOTH_XPAN is only used internally */
@@ -391,8 +391,8 @@ static int thinklcdml_set_par(struct fb_info *info)
     u8 red, green, blue;
 
     PRINT_PROC_ENTRY;
-    /* PRINT_D("\tres:%ux%u bpp:%u\n", info->var.xres, info->var.yres, info->var.bits_per_pixel); */
-    /* PRINT_D("\tred:%u:%u green:%u:%u blue:%u:%u transp:%u:%u\n", info->var.red.offset, info->var.red.length, info->var.green.offset, info->var.green.length, info->var.blue.offset, info->var.blue.length, info->var.transp.offset, info->var.transp.length); */
+    /* PRINT_D("\tres:%ux%u bpp:%u", info->var.xres, info->var.yres, info->var.bits_per_pixel); */
+    /* PRINT_D("\tred:%u:%u green:%u:%u blue:%u:%u transp:%u:%u", info->var.red.offset, info->var.red.length, info->var.green.offset, info->var.green.length, info->var.blue.offset, info->var.blue.length, info->var.transp.offset, info->var.transp.length); */
 
     // Reset the registers
     think_writel(par->regs, TLCD_REG_LAYER_STRIDE(OL(info)) , 0x00001000 );
@@ -416,7 +416,7 @@ static int thinklcdml_set_par(struct fb_info *info)
 	info->fix.visual = FB_VISUAL_TRUECOLOR;
 	break;
     default:
-	LVL_DBG (3, "Unable to determine bits per pixel...\n");
+	PRINT_D ("Unable to determine bits per pixel...");
 	return -EINVAL;
     }
 
@@ -445,7 +445,7 @@ static int thinklcdml_set_par(struct fb_info *info)
 	break;
     default:
 	mask &= ~(1<<20);
-	LVL_DBG (3, "unable to determine color mode...\n");
+	PRINT_D("Unable to determine color mode...\n");
 	return -EINVAL;
     }
 
@@ -453,7 +453,7 @@ static int thinklcdml_set_par(struct fb_info *info)
 	PRINT_W("Detected color mode is %u, overriding because we are in test mode!\n", mode);
     else {
 	par->mode = mode;
-	PRINT_D("Detected color mode is %u\n", par->mode);
+	PRINT_D("Detected color mode is %u", par->mode);
     }
     par->mode = mode;
 
@@ -462,7 +462,6 @@ static int thinklcdml_set_par(struct fb_info *info)
     mode_reg = TLCD_CONFIG_ENABLE | (mode_reg & ~0x3) | par->mode;
     //test mode lcd
 
-    PRINT_D("%p != %p\n", virtual_regs_base, par->regs);
     think_writel (virtual_regs_base, TLCD_REG_MODE , 0x80000000);
     think_writel (virtual_regs_base, TLCD_REG_CLKCTRL, 0x00000402);
     think_writel (virtual_regs_base, TLCD_REG_BGCOLOR , 0xFFFF0000);
@@ -478,7 +477,7 @@ static int thinklcdml_set_par(struct fb_info *info)
 
     dump_regs(par, OL(info));
 
-    LVL_DBG (3, "Actually enabling fb%d\n", OL(info));
+    PRINT_D ("Actually enabling fb%d", OL(info));
     //think_writel(par->regs, TLCD_REG_MODE, mode_reg);
     think_writel(par->regs, TLCD_REG_LAYER_MODE(OL(info)), ( (TLCD_CONFIG_ENABLE)|(0xff<<16)|(mode_reg&0xf) ) );
     think_writel(par->regs, TLCD_REG_LAYER_STRIDE(OL(info)), info->fix.line_length);
@@ -492,7 +491,7 @@ static int thinklcdml_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
     u32 out_val;
 
     /* PRINT_PROC_ENTRY; */
-    /* PRINT_D("i:%02x = red:%02x green:%02x blue:%02x alpha:%02x\n", regno, red, green, blue, transp); */
+    /* PRINT_D("i:%02x = red:%02x green:%02x blue:%02x alpha:%02x", regno, red, green, blue, transp); */
 
     if (regno >= TLCD_PALETTE_COLORS)
 	return -EINVAL;
@@ -532,7 +531,7 @@ static int thinklcdml_pan_display(struct fb_var_screeninfo *var, struct fb_info 
     unsigned long address;
 
     PRINT_PROC_ENTRY;
-    PRINT_D("mode:%u xoffset:%u yoffset:%u\n", var->vmode, var->xoffset, var->yoffset);
+    PRINT_D("mode:%u xoffset:%u yoffset:%u", var->vmode, var->xoffset, var->yoffset);
 
     /* check bounds */
     if (var->vmode & FB_VMODE_YWRAP ||
@@ -642,12 +641,12 @@ static int thinklcdml_cursor(struct fb_info *info, struct fb_cursor *cursor)
     think_writel(par->regs, TLCD_REG_MODE, think_readl(par->regs, TLCD_REG_MODE) & ~TLCD_CONFIG_CURSOR | color_mode);
 
     if (cursor->set & FB_CUR_SETPOS) {
-	PRINT_D("thinklcdml_cursor: SETPOS x:%u y:%u\n", cursor->image.dx, cursor->image.dy);
+	PRINT_D("thinklcdml_cursor: SETPOS x:%u y:%u", cursor->image.dx, cursor->image.dy);
 	think_writel(par->regs, TLCD_REG_CURSORXY, XY16TOREG32(cursor->image.dx, cursor->image.dy));
     }
 
     if (cursor->set & FB_CUR_SETCMAP) {
-	PRINT_D("thinklcdml_cursor: SET_CMAP fg:%u bg:%u\n", cursor->image.fg_color, cursor->image.bg_color);
+	PRINT_D("thinklcdml_cursor: SET_CMAP fg:%u bg:%u", cursor->image.fg_color, cursor->image.bg_color);
 
 	/* fetch the requested colors from the color map and program the device accordingly; only 2 colors are always used */
 	bg_idx = cursor->image.bg_color;
@@ -661,7 +660,7 @@ static int thinklcdml_cursor(struct fb_info *info, struct fb_cursor *cursor)
     }
 
     if (cursor->set & (FB_CUR_SETSIZE | FB_CUR_SETSHAPE | FB_CUR_SETIMAGE)) {
-	PRINT_D("thinklcdml_cursor: SETSIZE | SETSHAPE | SETIMAGE w:%u h:%u\n", cursor->image.width, cursor->image.height);
+	PRINT_D("thinklcdml_cursor: SETSIZE | SETSHAPE | SETIMAGE w:%u h:%u", cursor->image.width, cursor->image.height);
 
 	/* zero out the hardware cursor */
 	for (i = 0; i < TLCD_CURSOR_WIDTH * TLCD_CURSOR_HEIGHT / 8; i++)
@@ -713,7 +712,7 @@ static int thinklcdml_blank(int blank_mode, struct fb_info *info)
     u32 mode_reg;
 
     PRINT_PROC_ENTRY;
-    PRINT_D("blank: %d\n", blank_mode);
+    PRINT_D("blank: %d", blank_mode);
 
     /* blank out the screen by setting or clearing TLCD_MODE bit 31 */
     mode_reg = think_readl(par->regs, TLCD_REG_MODE);
@@ -854,7 +853,7 @@ static int __init thinklcdml_setup(char *options, char* separator)
 	}
 	else if (!strcmp(this_opt, "custom")) {
 	    custom = 1;
-	    PRINT_D("Custom mode set\n");
+	    PRINT_D("Custom mode set");
 	}
 	else {
 	    PRINT_W("Unknown mode '%s', defaulting to 1024x768 16-bit palette mode\n", this_opt);
@@ -888,16 +887,24 @@ static irqreturn_t thinklcdml_vsync_interrupt(int irq, void *ptr)
 
 static int thinklcdml_vsync(struct fb_info *info)
 {
-    struct tlcdml_fb_data *drvdata = info->device->platform_data;
-    struct thinklcdml_par* par = drvdata->infos[0]->par;
+    struct tlcdml_fb_data *drvdata;
+    struct thinklcdml_par* par;
     u64 count;
+    PRINT_D ("Calling vsync (platform data: %p)!!", info->device->platform_data);
     PRINT_PROC_ENTRY;
+
+    drvdata = info->device->platform_data;
+    PRINT_D ("Infos: %p", drvdata->infos); /* This os 0x4!! Use info instead */
+    par = info->par;
 
     /* enable vsync interrupt; it will be cleared on arrival */
     count = par->vblank_count;
-    think_writel(par->regs, TLCD_REG_INTERRUPT, 8);
+
+    PRINT_E ("Writing: %p, 0x%08x, 8", par->regs, TLCD_REG_INTERRUPT);
+    think_writel(par->regs, TLCD_REG_INTERRUPT, 4);
     /* wait for it for a while */
-    if (!wait_event_interruptible_timeout(par->wait_vsync, count != par->vblank_count, HZ / 10)) { /// XXX: i think this gets a null pointer from somewhere
+    PRINT_D ("WAITING_INTERRUPTIBLE: %p, %d != %d, %d/10", par->wait_vsync, count, par->vblank_count, HZ);
+    if (!wait_event_interruptible_timeout(par->wait_vsync, count != par->vblank_count, HZ / 10)) {
 	return -ETIMEDOUT;
     }
 
@@ -909,24 +916,29 @@ static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned lon
     struct thinklcdml_par *par = info->par;
     int i,mode;
     int red,green,blue;
-    unsigned Bpp, color;
+    unsigned Bpp, color, ret;
 
     PRINT_PROC_ENTRY;
+
+    PRINT_D ("calling ioctl...");
 
     switch (cmd) {
 	/* DirectFB uses this interface to sync to the LCD */
 	//------------------------------------------------------------------------
     case TLCDML_SET_REGISTER:
+	PRINT_D ("ioctl: TLCDML_SET_REGISTER");
 	think_writel( par->regs, *((unsigned long*)arg), *(((unsigned long*)arg)+1));
 	break;
     case TLCDML_GET_REGISTER:
+	PRINT_D ("ioctl: TLCDML_GET_REGISTER");
 	*(((unsigned long*)arg)+1) = think_readl( par->regs, *((unsigned long*)arg));
 	break;
     case TLCDML_COLOR_CLEAR:
+	PRINT_D ("ioctl: LCDML_COLOR_CLEAR");
 	Bpp = info->var.bits_per_pixel/8;
 	color = arg << (8*( sizeof(unsigned long) - Bpp));
 	void* offset;
-	LVL_DBG (3,  "clear color: %x (depth: %d, stride: %d, color mode: %x)\n", color, info->var.bits_per_pixel, info->fix.line_length, color_mode);
+	PRINT_D ( "clear color: %x (depth: %d, stride: %d, color mode: %x)", color, info->var.bits_per_pixel, info->fix.line_length, color_mode);
 
 	memset(info->screen_base, 0, info->fix.line_length * info->var.yres_virtual );
 	for ( offset = info->screen_base; offset<info->screen_base + info->fix.line_length * info->var.yres_virtual; offset += info->fix.line_length ) {
@@ -936,22 +948,29 @@ static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned lon
 	}
 	break;
     case TLCDML_GET_INFO:
+	PRINT_D("ioctl: TLCDML_GET_INFO");
 	memcpy(arg, &info->var, sizeof(struct fb_var_screeninfo));
 	break;
     case TLCDML_DUMP_REGS:
+	PRINT_D("ioctl: TLCDML_DUMP_REGS");
 	if (arg < TLCDML_LAYERS_NUMBER)
 	    dump_regs(par, arg);
 	else
 	    PRINT_E( "Dumping of registers of layer %d cannot be done (layer number %d)\n", arg, TLCDML_LAYERS_NUMBER);
 	break;
     case TLCDML_GET_LAYER_NUMBER:
+	PRINT_D("ioctl: TLCDML_GET_LAYER_NUMBER");
 	*((unsigned long*)arg) = OL(info);
 	break;
     case FBIO_WAITFORVSYNC:
-	return thinklcdml_vsync(info);
+	PRINT_D("ioctl: FBIO_WAITFORVSYNC, info: %p, thinklcdml_vsync: %p", info, thinklcdml_vsync);
+	ret = thinklcdml_vsync(info);
+	PRINT_D ("vsync = 0x%08x",ret);
+	return ret;
 	break;
 	//------------------------------------------------------------------------
     case FBIO_RAMP_SET:
+	PRINT_D("ioctl: FBIO_RAMP_SET");
 	mode = think_readl(par->regs, TLCD_REG_MODE);
 
 	if(arg==0)
@@ -969,15 +988,19 @@ static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned lon
 	return 1;
 	break;
     case FBIO_I2C_W:
+	PRINT_D("ioctl: FBIO_I2C_W");
 	break;
 	//------------------------------------------------------------------------
     case FBIO_I2C_R:
+	PRINT_D("ioctl: FBIO_I2C_R");
 	break;
 	//------------------------------------------------------------------------
     case FBIO_SIF_W:
+	PRINT_D("ioctl: FBIO_SIF_W");
 	break;
 	//------------------------------------------------------------------------
     case FBIO_SIF_R:
+	PRINT_D("ioctl: FBIO_SIF_R");
 	break;
 	//------------------------------------------------------------------------
     default:
@@ -996,7 +1019,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
 
     PRINT_PROC_ENTRY;
 
-    PRINT_D("Allocating framebuffer infos.\n");
+    PRINT_D("Allocating framebuffer infos.");
     /* framebuffer alloc allocates infos and you tell it how much
      * extra space you need for pars. */
     drvdata->infos[drvdata->fb_num] = framebuffer_alloc(sizeof(struct thinklcdml_par), &device->dev);
@@ -1015,12 +1038,12 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
     par->regs = virtual_regs_base;
 
     /* initialize register file */
-    PRINT_D("Initializing register file.\n");
+    PRINT_D("Initializing register file.");
     think_writel (par->regs, TLCD_REG_LAYER_SCALEY(drvdata->fb_num), 0x4000);
     think_writel (par->regs, TLCD_REG_LAYER_SCALEX(drvdata->fb_num), 0x4000);
     think_writel(par->regs, TLCD_REG_LAYER_BASEADDR(drvdata->fb_num), physical_start);
     think_writel(par->regs, TLCD_REG_LAYER_MODE(drvdata->fb_num),      (drvdata->fb_num ? TLCD_MODE : (1<<31)|TLCD_MODE) | color_mode );
-    LVL_DBG (3, "Framebuffer no: %d, physical start: %p, virtual start %p, mode: %p\n", drvdata->fb_num, physical_start, virtual_start, think_readl(par->regs, TLCD_REG_LAYER_MODE(drvdata->fb_num)));
+    PRINT_D ("Framebuffer no: %d, physical start: %p, virtual start %p, mode: %p", drvdata->fb_num, physical_start, virtual_start, think_readl(par->regs, TLCD_REG_LAYER_MODE(drvdata->fb_num)));
 
     /* fixup default_var; must already have set info->screen_size */
     info->screen_size    = fb_memsize;
@@ -1038,7 +1061,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
     info->fix.smem_len    = fb_memsize;
     info->fix.mmio_start  = physical_register_base; /* TLCD_PHYSICAL_BASE; */
     info->fix.mmio_len    = TLCD_MMIOALLOC;
-    info->fix.line_length = get_line_length(info->var.xres_virtual, info->var.bits_per_pixel);if(!info->fix.line_length) LVL_DBG (3, "attempting to initalize 0 line-length in layer %d\n", drvdata->fb_num);
+    info->fix.line_length = get_line_length(info->var.xres_virtual, info->var.bits_per_pixel);if(!info->fix.line_length) PRINT_D ( "attempting to initalize 0 line-length in layer %d", drvdata->fb_num);
     info->pseudo_palette  = par->pseudo_palette;
     info->flags           = FBINFO_FLAG_DEFAULT
 	| FBINFO_HWACCEL_XPAN
@@ -1046,7 +1069,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
 	| FBINFO_PARTIAL_PAN_OK;
 
     /* allocate a color map */
-    PRINT_D("Allocating color map.\n");
+    PRINT_D("Allocating color map.");
     retval = fb_alloc_cmap(&info->cmap, 256, 0);
     if (retval < 0) {
 	PRINT_E("Failed to allocate memory with fb_alloc_cmap\n");
@@ -1054,7 +1077,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
     }
 
     /* finally, register our framebuffer */
-    PRINT_D("Register framebuffer.\n");\
+    PRINT_D("Register framebuffer.");\
     retval = register_framebuffer(info);
     if (retval < 0) {
 	PRINT_E("Failed to register framebuffer\n");
@@ -1092,7 +1115,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
     // fb_hard should be 0 or 1 here..
 
     if (fb_hard) {
-	PRINT_D("Static allocation of framebuffers.\n");
+	PRINT_D("Static allocation of framebuffers.");
 
 	/* got framebuffer base address from argument list */
 	/* In this case support for only one layer. TODO some trickery
@@ -1121,7 +1144,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	 * if the following fails, try to configure your kernel with
 	 * CONFIG_FORCE_MAX_ZONEORDER; as of writing this, MAX_ORDER
 	 * is configured as 11, which allows a maximum alloc of 4MB */
-	PRINT_D("Dynamic allocation of framebuffers.\n");
+	PRINT_D("Dynamic allocation of framebuffers.");
 
 	for (alloc_layers = 0; alloc_layers < TLCDML_LAYERS_NUMBER; alloc_layers++) {
 
@@ -1133,7 +1156,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
 		PRINT_E("Unable to allocate framebuffer:%u memory (%u bytes order:%u MAX_ORDER:%u)\n", alloc_layers, fb_memsize, get_order(fb_memsize), MAX_ORDER);
 		if (!alloc_layers) return -ENOMEM;
 	    }
-	    PRINT_D("Successfully allocated layers.\n");
+	    PRINT_D("Successfully allocated layers.");
 
 	    physical_start[alloc_layers] = __pa(virtual_start[alloc_layers]);
 
@@ -1142,13 +1165,13 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	    for (page = virtual_start[alloc_layers]; page < PAGE_ALIGN(virtual_start[alloc_layers] + fb_memsize); page += PAGE_SIZE) {
 		SetPageReserved(virt_to_page((void *)page));
 	    }
-	    PRINT_D("Layer pages reserved.\n");
+	    PRINT_D("Layer pages reserved.");
 	}
     }
 
     /* clear out the screen, try to minimize flickering */
     for (i = 0; i<alloc_layers; i++) {
-	PRINT_D("Clearing framebuffer data %d/%d\n", i, alloc_layers);
+	PRINT_D("Clearing framebuffer data %d/%d", i, alloc_layers);
 	memset((unsigned long *) virtual_start[i], 0, fb_memsize);
 	PRINT_I("VRAM fb%u PA:0x%08lx -> VA:0x%lx len:%u\n", i, physical_start[i], virtual_start[i], fb_memsize);
     }
@@ -1158,7 +1181,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	goto err_fb_mem_alloc;
     }
 
-    PRINT_D("Performing ioremap for registers (physical base: 0x%08x, len: 0x%08x).\n", physical_register_base, TLCD_MMIOALLOC);
+    PRINT_D("Performing ioremap for registers (physical base: 0x%08x, len: 0x%08x).", physical_register_base, TLCD_MMIOALLOC);
     virtual_regs_base = (unsigned long)ioremap_nocache(physical_register_base, TLCD_MMIOALLOC);
     if (!virtual_regs_base) {
 	PRINT_E("MMIO remap for register file failed\n");
@@ -1166,12 +1189,12 @@ static int __init thinklcdml_probe(struct platform_device *device)
     } else
 	PRINT_I("MMIO for register file PA:0x%08x -> VA:0x%08x len:%u\n", physical_register_base, virtual_regs_base, TLCD_MMIOALLOC);
 
-    PRINT_D("Setting default modeL 0x%08x\n", TLCD_MODE);
+    PRINT_D("Setting default modeL 0x%08x", TLCD_MODE);
     think_writel(virtual_regs_base, TLCD_REG_MODE, TLCD_MODE);
 
     /* Register the framebuffer */
     for (i=0; i < alloc_layers; i++) {
-	PRINT_D("Registering framebuffer %d/%d.\n", i+1, alloc_layers);
+	PRINT_D("Registering framebuffer %d/%d.", i+1, alloc_layers);
 	if (thinklcdml_add_layer(device, physical_start[i], virtual_start[i])) {
 	    PRINT_E("Failed to register layer %d\n",i);
 	    goto err_reg_map;
@@ -1182,7 +1205,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
     /* initialize the wait object for interrupt */
     init_waitqueue_head(&((struct  thinklcdml_par*)drvdata->infos[0]->par)->wait_vsync);
 
-    PRINT_D("Wait object for vsync interrupts initialized.\n");
+    PRINT_D("Wait object for vsync interrupts initialized.");
 
 
     retval = request_irq(TLCD_VSYNC_IRQ, thinklcdml_vsync_interrupt, IRQF_DISABLED, "thinklcdml vsync", drvdata->infos[0]->par);
@@ -1231,13 +1254,13 @@ static int thinklcdml_remove(struct platform_device *device)
     /* release the interrupt */
     think_writel(par->regs, TLCD_REG_INTERRUPT, 0);
 
-    PRINT_D("Freeing irq...\n");
+    PRINT_D("Freeing irq...");
     free_irq(TLCD_VSYNC_IRQ, par);
 
-    PRINT_D("Unmapping register file...\n");
+    PRINT_D("Unmapping register file...");
     iounmap((void *)virtual_regs_base);
 
-    PRINT_D("Releasing register file.\n");
+    PRINT_D("Releasing register file.");
     release_mem_region(physical_register_base, TLCD_MMIOALLOC);
 
     for (i = 0; i<drvdata->fb_num; i++) {
