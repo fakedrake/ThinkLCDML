@@ -887,15 +887,9 @@ static irqreturn_t thinklcdml_vsync_interrupt(int irq, void *ptr)
 
 static int thinklcdml_vsync(struct fb_info *info)
 {
-    struct tlcdml_fb_data *drvdata;
-    struct thinklcdml_par* par;
+    struct thinklcdml_par* par = info->par;
     u64 count;
-    PRINT_D ("Calling vsync (platform data: %p)!!", info->device->platform_data);
     PRINT_PROC_ENTRY;
-
-    drvdata = info->device->platform_data;
-    PRINT_D ("Infos: %p", drvdata->infos); /* This os 0x4!! Use info instead */
-    par = info->par;
 
     /* enable vsync interrupt; it will be cleared on arrival */
     count = par->vblank_count;
@@ -963,9 +957,8 @@ static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned lon
 	*((unsigned long*)arg) = OL(info);
 	break;
     case FBIO_WAITFORVSYNC:
-	PRINT_D("ioctl: FBIO_WAITFORVSYNC, info: %p, thinklcdml_vsync: %p", info, thinklcdml_vsync);
+	PRINT_D("ioctl: FBIO_WAITFORVSYNC");
 	ret = thinklcdml_vsync(info);
-	PRINT_D ("vsync = 0x%08x",ret);
 	return ret;
 	break;
 	//------------------------------------------------------------------------
