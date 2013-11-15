@@ -21,6 +21,9 @@
 #define TLCD_CURSOR_HEIGHT	32		///< Hardware cursor height
 #define TLCD_CURSOR_COLORS	16		///< Number of hardware cursor color lookup table colors
 
+#define TLCD_CLKCTRL            0x00000402
+#define TLCD_BGCOLOR            0xFFFF0000
+
 // ThinkLCD modes
 #define TLCD_MODE_LUT8		(0x00 | (1<<20))
 #define TLCD_MODE_RGBA5551	0x01

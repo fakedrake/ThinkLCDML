@@ -165,7 +165,7 @@ static struct fb_var_screeninfo m1024x768 __initdata = {
     .yres =			768,
     .xres_virtual =		1024,
     .yres_virtual =		768,
-    .pixclock =		15385,
+    .pixclock =		        15385,
     .left_margin =		160,
     .right_margin =		24,
     .upper_margin =		29,
@@ -237,8 +237,6 @@ static void dump_regs( struct thinklcdml_par *par, int layer)
     PRINT_D("TLCD_REG_LAYER_SCALEY(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEY(layer) ));
 }
 
-
-
 static struct fb_ops thinklcdml_ops = {
     .owner			    = THIS_MODULE,
     .fb_check_var		    = thinklcdml_check_var,
@@ -271,10 +269,6 @@ static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *i
     u_long line_length;
 
     PRINT_PROC_ENTRY;
-    /* PRINT_D("\tres:%ux%u virtual:%ux%u bpp:%u", var->xres, var->yres, var->xres_virtual, var->yres_virtual, var->bits_per_pixel); */
-    /* PRINT_D("\tred:%u:%u green:%u:%u blue:%u:%u transp:%u:%u", var->red.offset, var->red.length, var->green.offset, var->green.length, var->blue.offset, var->blue.length, var->transp.offset, var->transp.length); */
-    /* PRINT_D("\tnonstd:%u activate:%u grayscale:%u vmode:0x%08x", var->nonstd, var->activate, var->grayscale, var->vmode); */
-
     /*  FB_VMODE_CONUPDATE and FB_VMODE_SMOOTH_XPAN are equal!
      *  as FB_VMODE_SMOOTH_XPAN is only used internally */
     if (var->vmode & FB_VMODE_CONUPDATE)
@@ -391,19 +385,15 @@ static int thinklcdml_set_par(struct fb_info *info)
     u8 red, green, blue;
 
     PRINT_PROC_ENTRY;
-    /* PRINT_D("\tres:%ux%u bpp:%u", info->var.xres, info->var.yres, info->var.bits_per_pixel); */
-    /* PRINT_D("\tred:%u:%u green:%u:%u blue:%u:%u transp:%u:%u", info->var.red.offset, info->var.red.length, info->var.green.offset, info->var.green.length, info->var.blue.offset, info->var.blue.length, info->var.transp.offset, info->var.transp.length); */
 
-    // Reset the registers
-    think_writel(par->regs, TLCD_REG_LAYER_STRIDE(OL(info)) , 0x00001000 );
-    think_writel(par->regs, TLCD_REG_LAYER_STARTXY(OL(info)) , 0x0 );
+    /* XXX: A smarter stride */
+    think_writel(par->regs, TLCD_REG_LAYER_STARTXY(OL(info)), 0x0 );
     think_writel(par->regs, TLCD_REG_LAYER_RESXY(OL(info)),  XY16TOREG32(info->var.xres +   0, info->var.yres +  0));
-    think_writel(par->regs, TLCD_REG_RESXY,         XY16TOREG32(info->var.xres +   0, info->var.yres +  0));
+    think_writel(par->regs, TLCD_REG_RESXY,                  XY16TOREG32(info->var.xres +   0, info->var.yres +  0));
     think_writel(par->regs, TLCD_REG_LAYER_SIZEXY(OL(info)), XY16TOREG32(info->var.xres +   0, info->var.yres +  0));
-
-    think_writel(par->regs, TLCD_REG_FRONTPORCHXY, XY16TOREG32(info->var.xres +  40, info->var.yres + 10));
-    think_writel(par->regs, TLCD_REG_BLANKINGXY,   XY16TOREG32(info->var.xres +  41, info->var.yres + 11));
-    think_writel(par->regs, TLCD_REG_BACKPORCHXY,  XY16TOREG32(info->var.xres + 257, info->var.yres + 46));
+    think_writel(par->regs, TLCD_REG_FRONTPORCHXY,           XY16TOREG32(info->var.xres +  40, info->var.yres + 10));
+    think_writel(par->regs, TLCD_REG_BLANKINGXY,             XY16TOREG32(info->var.xres +  41, info->var.yres + 11));
+    think_writel(par->regs, TLCD_REG_BACKPORCHXY,            XY16TOREG32(info->var.xres + 257, info->var.yres + 46));
 
     switch(info->var.bits_per_pixel) {
     case  8:
@@ -455,36 +445,32 @@ static int thinklcdml_set_par(struct fb_info *info)
 	par->mode = mode;
 	PRINT_D("Detected color mode is %u", par->mode);
     }
-    par->mode = mode;
+    par->mode = mode & 0x3;
 
-    /* set mode in registers */
-    mode_reg = think_readl(par->regs, TLCD_REG_MODE) & mask;
-    mode_reg = TLCD_CONFIG_ENABLE | (mode_reg & ~0x3) | par->mode;
-    //test mode lcd
+    /* Get reg mode */
+    mode_layer = think_readl(par->regs, TLCD_REG_MODE) & mask;
+    mode_layer = TLCD_CONFIG_ENABLE | (mode_reg & ~0x3) | par->mode;
 
-    think_writel (virtual_regs_base, TLCD_REG_MODE , 0x80000000);
-    think_writel (virtual_regs_base, TLCD_REG_CLKCTRL, 0x00000402);
-    think_writel (virtual_regs_base, TLCD_REG_BGCOLOR , 0xFFFF0000);
-    think_writel (virtual_regs_base, TLCD_REG_RESXY, 0x04000300);
-    think_writel (virtual_regs_base, TLCD_REG_FRONTPORCHXY, 0x04200303);
-    think_writel (virtual_regs_base, TLCD_REG_BLANKINGXY, 0x04680306);
-    think_writel (virtual_regs_base,TLCD_REG_BACKPORCHXY, 0x04F80320);
+    think_writel (virtual_regs_base, TLCD_REG_MODE , mode_reg);
+    think_writel (virtual_regs_base, TLCD_REG_CLKCTRL, TLCD_CLKCTRL);
+    think_writel (virtual_regs_base, TLCD_REG_BGCOLOR , TLCD_BGCOLOR);
 
+    /* XXX: Get rid of this one way or another */
     think_writel (virtual_regs_base,0x2c , 0x00000000); /* XXX: what register is 0x2c? */
     think_writel(virtual_regs_base, TLCD_REG_LAYER_MODE(0), 0x88ff0102);
-    think_writel (virtual_regs_base,TLCD_REG_LAYER_SIZEXY(0) , 0x04000300);
-    think_writel(virtual_regs_base, TLCD_REG_LAYER_RESXY(0), 0x04000300);
 
     dump_regs(par, OL(info));
 
     PRINT_D ("Actually enabling fb%d", OL(info));
     //think_writel(par->regs, TLCD_REG_MODE, mode_reg);
-    think_writel(par->regs, TLCD_REG_LAYER_MODE(OL(info)), ( (TLCD_CONFIG_ENABLE)|(0xff<<16)|(mode_reg&0xf) ) );
+    /* Enable, global full alpha, color mode as defined. */
+    think_writel(par->regs, TLCD_REG_LAYER_MODE(OL(info)), ((TLCD_CONFIG_ENABLE) | (0xff<<16) | (mode_layer & 0x3)));
     think_writel(par->regs, TLCD_REG_LAYER_STRIDE(OL(info)), info->fix.line_length);
 
     return 0;
 }
 
+/* Fill in the pallete. */
 static int thinklcdml_setcolreg(u_int regno, u_int red, u_int green, u_int blue, u_int transp, struct fb_info *info)
 {
     struct thinklcdml_par *par = info->par;
@@ -727,6 +713,7 @@ static int thinklcdml_blank(int blank_mode, struct fb_info *info)
     return 0;
 }
 
+/* Parse the options. */
 static int __init thinklcdml_setup(char *options, char* separator)
 {
     char *this_opt;
