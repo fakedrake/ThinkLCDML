@@ -89,8 +89,9 @@ MODULE_LICENSE("GPL");
 #define PRINT_PROC_ENTRY	do {} while (0)
 #endif
 
-#define think_readl(base, offset) (readl((u32*)((base) + (offset))))
-#define think_writel(base, offset, val) (writel((val), (u32*)((unsigned long)(base) + (offset))))
+#define think_readl(base, offset) fb_readl((u32 __iomem *)((base) + (offset)))
+#define think_writel(base, offset, val) fb_writel(val, (u32 __iomem *)((unsigned long)(base) + (offset)))
+#define think_writel_D(base, offset, val) do {PRINT_D("0x%08lx:0x%08x\n", (base) + (offset), (val)); think_writel(base, offset, val);} while (0)
 
 #define XY16TOREG32(x, y) ((x) << 16 | ((y) & 0xffff))
 #define CLAMP255(i) ( ((i)<0) ? 0 : ((i)>255) ? 255 : (i) )
@@ -193,9 +194,9 @@ static struct tlcdml_fb_data {
 static unsigned int fb_memsize __initdata = 3145728;
 static unsigned int fb_hard = 0; // fb_hard means: 0, from __get_free_pages. 1, ioremap. 2, no allocation (see thinklcdml_setfbmem)
 static unsigned int physical_register_base __initdata = TLCD_PHYSICAL_BASE;
-static unsigned long fb_addr __initdata = 0;
+static unsigned long fb_addr __initdata = 0x00000000;
 static struct fb_var_screeninfo default_var __initdata;
-static unsigned long virtual_regs_base = NULL, color_mode = 0; // color mode defaults to LUT8
+static unsigned long virtual_regs_base = 0, color_mode = 0; // color mode defaults to LUT8
 static char* module_options __initdata = NULL;
 
 static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info);
@@ -217,24 +218,24 @@ static int thinklcdml_cursor(struct fb_info *info, struct fb_cursor *cursor);
 static void dump_regs( struct thinklcdml_par *par, int layer)
 {
     PRINT_D("*** ThinkLCDML register dump!***");
-    PRINT_D("TLCD_REG_MODE=%p", think_readl( par->regs, TLCD_REG_MODE));
-    PRINT_D("TLCD_REG_CLKCTRL=%p", think_readl( par->regs, TLCD_REG_CLKCTRL));
-    PRINT_D("TLCD_REG_BGCOLOR=%p", think_readl( par->regs, TLCD_REG_BGCOLOR));
-    PRINT_D("TLCD_REG_RESXY=%p", think_readl( par->regs, TLCD_REG_RESXY));
-    PRINT_D("TLCD_REG_STRIDE=%p", think_readl( par->regs, TLCD_REG_STRIDE));
-    PRINT_D("TLCD_REG_FRONTPORCHXY=%p", think_readl( par->regs, TLCD_REG_FRONTPORCHXY));
-    PRINT_D("TLCD_REG_BLANKINGXY=%p", think_readl( par->regs, TLCD_REG_BLANKINGXY));
-    PRINT_D("TLCD_REG_BACKPORCHXY=%p", think_readl( par->regs, TLCD_REG_BACKPORCHXY));
-    PRINT_D("TLCD_REG_CURSORXY=%p", think_readl( par->regs, TLCD_REG_CURSORXY));
+    PRINT_D("TLCD_REG_MODE=0x%08lx", think_readl( par->regs, TLCD_REG_MODE));
+    PRINT_D("TLCD_REG_CLKCTRL=0x%08lx", think_readl( par->regs, TLCD_REG_CLKCTRL));
+    PRINT_D("TLCD_REG_BGCOLOR=0x%08lx", think_readl( par->regs, TLCD_REG_BGCOLOR));
+    PRINT_D("TLCD_REG_RESXY=0x%08lx", think_readl( par->regs, TLCD_REG_RESXY));
+    PRINT_D("TLCD_REG_STRIDE=0x%08lx", think_readl( par->regs, TLCD_REG_STRIDE));
+    PRINT_D("TLCD_REG_FRONTPORCHXY=0x%08lx", think_readl( par->regs, TLCD_REG_FRONTPORCHXY));
+    PRINT_D("TLCD_REG_BLANKINGXY=0x%08lx", think_readl( par->regs, TLCD_REG_BLANKINGXY));
+    PRINT_D("TLCD_REG_BACKPORCHXY=0x%08lx", think_readl( par->regs, TLCD_REG_BACKPORCHXY));
+    PRINT_D("TLCD_REG_CURSORXY=0x%08lx", think_readl( par->regs, TLCD_REG_CURSORXY));
 
-    PRINT_D("TLCD_REG_LAYER_MODE(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_MODE(layer) ));
-    PRINT_D("TLCD_REG_LAYER_STARTXY(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
-    PRINT_D("TLCD_REG_LAYER_SIZEXY(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
-    PRINT_D("TLCD_REG_LAYER_BASEADDR(%d)(v)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_BASEADDR(layer) ));
-    PRINT_D("TLCD_REG_LAYER_STRIDE(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_STRIDE(layer) ));
-    PRINT_D("TLCD_REG_LAYER_RESXY(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_RESXY(layer) ));
-    PRINT_D("TLCD_REG_LAYER_SCALEX(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEX(layer) ));
-    PRINT_D("TLCD_REG_LAYER_SCALEY(%d)=%p", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEY(layer) ));
+    PRINT_D("TLCD_REG_LAYER_MODE(%d)=0x%08lx", layer, think_readl( par->regs, TLCD_REG_LAYER_MODE(layer) ));
+    PRINT_D("TLCD_REG_LAYER_STARTXY(%d)=0x%08lx", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
+    PRINT_D("TLCD_REG_LAYER_SIZEXY(%d)=0x%08lx", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
+    PRINT_D("TLCD_REG_LAYER_BASEADDR(%d)(v)=0x%08lx", layer, think_readl( par->regs, TLCD_REG_LAYER_BASEADDR(layer) ));
+    PRINT_D("TLCD_REG_LAYER_STRIDE(%d)=0x%08lx", layer, think_readl( par->regs, TLCD_REG_LAYER_STRIDE(layer) ));
+    PRINT_D("TLCD_REG_LAYER_RESXY(%d)=0x%08lx", layer, think_readl( par->regs, TLCD_REG_LAYER_RESXY(layer) ));
+    PRINT_D("TLCD_REG_LAYER_SCALEX(%d)=0x%08lx", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEX(layer) ));
+    PRINT_D("TLCD_REG_LAYER_SCALEY(%d)=0x%08lx", layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEY(layer) ));
 }
 
 static struct fb_ops thinklcdml_ops = {
@@ -395,6 +396,7 @@ static int thinklcdml_set_par(struct fb_info *info)
     think_writel(par->regs, TLCD_REG_BLANKINGXY,             XY16TOREG32(info->var.xres +  41, info->var.yres + 11));
     think_writel(par->regs, TLCD_REG_BACKPORCHXY,            XY16TOREG32(info->var.xres + 257, info->var.yres + 46));
 
+    /* Decide on color mode */
     switch(info->var.bits_per_pixel) {
     case  8:
 	info->fix.visual = info->var.red.offset ? FB_VISUAL_TRUECOLOR : FB_VISUAL_PSEUDOCOLOR;
@@ -412,7 +414,7 @@ static int thinklcdml_set_par(struct fb_info *info)
 
     info->fix.line_length = get_line_length(info->var.xres_virtual, info->var.bits_per_pixel);
 
-    /* try to guess our mode based on color sizes and offsets */
+    /* Guess color mode */
     switch (info->var.bits_per_pixel) {
     case  8:
 	mode = info->var.grayscale ? TLCD_MODE_L8 : (info->var.red.offset ? TLCD_MODE_RGB332 : TLCD_MODE_LUT8);
@@ -881,10 +883,10 @@ static int thinklcdml_vsync(struct fb_info *info)
     /* enable vsync interrupt; it will be cleared on arrival */
     count = par->vblank_count;
 
-    PRINT_E ("Writing: %p, 0x%08x, 8", par->regs, TLCD_REG_INTERRUPT);
+    PRINT_E ("Writing: 0x%08lx, 0x%08x, 8", par->regs, TLCD_REG_INTERRUPT);
     think_writel(par->regs, TLCD_REG_INTERRUPT, 4);
     /* wait for it for a while */
-    PRINT_D ("WAITING_INTERRUPTIBLE: %p, %d != %d, %d/10", par->wait_vsync, count, par->vblank_count, HZ);
+    PRINT_D ("WAITING_INTERRUPTIBLE: 0x%08lx, %d != %d, %d/10", par->wait_vsync, count, par->vblank_count, HZ);
     if (!wait_event_interruptible_timeout(par->wait_vsync, count != par->vblank_count, HZ / 10)) {
 	return -ETIMEDOUT;
     }
@@ -1023,7 +1025,7 @@ static int thinklcdml_add_layer(struct platform_device *device, unsigned long ph
     think_writel (par->regs, TLCD_REG_LAYER_SCALEX(drvdata->fb_num), 0x4000);
     think_writel(par->regs, TLCD_REG_LAYER_BASEADDR(drvdata->fb_num), physical_start);
     think_writel(par->regs, TLCD_REG_LAYER_MODE(drvdata->fb_num),      (drvdata->fb_num ? TLCD_MODE : (1<<31)|TLCD_MODE) | color_mode );
-    PRINT_D ("Framebuffer no: %d, physical start: %p, virtual start %p, mode: %p", drvdata->fb_num, physical_start, virtual_start, think_readl(par->regs, TLCD_REG_LAYER_MODE(drvdata->fb_num)));
+    PRINT_D ("Framebuffer no: %d, physical start: 0x%08lx, virtual start 0x%08lx, mode: 0x%08lx", drvdata->fb_num, physical_start, virtual_start, think_readl(par->regs, TLCD_REG_LAYER_MODE(drvdata->fb_num)));
 
     /* fixup default_var; must already have set info->screen_size */
     info->screen_size    = fb_memsize;
