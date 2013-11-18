@@ -15,4 +15,4 @@ function fail {
     exit 2
 }
 
-make ARCH=arm CROSS_COMPILE=arm-xilinx-linux-gnueabi- XLNX_BOOTSTRAP=$XLNX_BOOTSTRAP
+make ARCH=arm CROSS_COMPILE=arm-xilinx-linux-gnueabi- XILINX_BOOTSTRAP=$XLNX_BOOTSTRAP

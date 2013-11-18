@@ -1,7 +1,7 @@
 #ifndef __THINKLCDML_H__
 #define __THINKLCDML_H__
 
-#define TLCDML_LAYERS_NUMBER 2 // a makefile seds this line to make the devices
+#define TLCDML_LAYERS_NUMBER 1
 
 // ThinkLCD hardware constants
 #define LCDBASEADDRESS		0x79000000
