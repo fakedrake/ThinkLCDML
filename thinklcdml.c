@@ -78,13 +78,13 @@ MODULE_LICENSE("GPL");
 #endif
 
 #ifdef TLCD_DEBUG
-#define PRINT_D(fmt, args...)	do { printk("<tlcd>ThinkLCDML: " fmt "</tlcd>\n", ##args); } while (0)
+#define PRINT_D(fmt, args...)	do { printk("ThinkLCDML: " fmt "\n", ##args); } while (0)
 #else
 #define PRINT_D(args...)	do { } while(0)
 #endif
 
 #if defined(TLCD_DEBUG_PROCENTRY) || defined(TLCD_DEBUG)
-#define PRINT_PROC_ENTRY	do { printk("* ThinkLCDML: %s\n", __FUNCTION__); } while (0)
+#define PRINT_PROC_ENTRY	do { printk("ThinkLCDML: calling: %s()\n", __FUNCTION__); } while (0)
 #else
 #define PRINT_PROC_ENTRY	do {} while (0)
 #endif
@@ -475,7 +475,7 @@ static int thinklcdml_setcolreg(u_int regno, u_int red, u_int green, u_int blue,
     struct thinklcdml_par *par = info->par;
     u32 out_val;
 
-    /* PRINT_PROC_ENTRY; */
+    PRINT_PROC_ENTRY;
     /* PRINT_D("i:%02x = red:%02x green:%02x blue:%02x alpha:%02x", regno, red, green, blue, transp); */
 
     if (regno >= TLCD_PALETTE_COLORS)
@@ -573,6 +573,7 @@ static void thinklcdml_load_cursor_image(int width, int height, u8 *data, struct
     u32 p;
     int i, j, k;
     u8 b, mod = width % 8;
+    PRINT_PROC_ENTRY;
 
     /* for all vertical lines... */
     for (i = height; i--; ) {
@@ -1274,7 +1275,6 @@ static int thinklcdml_remove(struct platform_device *device)
 	    /* and free the pages */
 	    free_pages((unsigned long)info->screen_base, get_order(info->screen_size));
 	}
-
 	unregister_framebuffer(info);
 	framebuffer_release(info);
     }
@@ -1360,8 +1360,11 @@ module_init(thinklcdml_init);
 static void __exit thinklcdml_exit(void)
 {
     int i;
+    PRINT_PROC_ENTRY;
+
     for (i=0;i<TLCDML_LAYERS_NUMBER;i++)
 	platform_device_unregister(&thinklcdml_device);
+
     platform_driver_unregister(&thinklcdml_driver);
 }
 
