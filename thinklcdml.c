@@ -212,25 +212,25 @@ static void dump_regs( struct thinklcdml_par *par, int layer)
     PRINT_D("*** ThinkLCDML register dump!***");
 
     /* Global registers. */
-    PRINT_D("TLCD_REG_MODE=0x%08x",		think_readl( par->regs, TLCD_REG_MODE));
-    PRINT_D("TLCD_REG_CLKCTRL=0x%08x", 	think_readl( par->regs, TLCD_REG_CLKCTRL));
-    PRINT_D("TLCD_REG_BGCOLOR=0x%08x",		think_readl( par->regs, TLCD_REG_BGCOLOR));
-    PRINT_D("TLCD_REG_RESXY=0x%08x",		think_readl( par->regs, TLCD_REG_RESXY));
-    PRINT_D("TLCD_REG_STRIDE=0x%08x",		think_readl( par->regs, TLCD_REG_STRIDE));
-    PRINT_D("TLCD_REG_FRONTPORCHXY=0x%08x",	think_readl( par->regs, TLCD_REG_FRONTPORCHXY));
-    PRINT_D("TLCD_REG_BLANKINGXY=0x%08x",	think_readl( par->regs, TLCD_REG_BLANKINGXY));
-    PRINT_D("TLCD_REG_BACKPORCHXY=0x%08x",	think_readl( par->regs, TLCD_REG_BACKPORCHXY));
-    PRINT_D("TLCD_REG_CURSORXY=0x%08x",	think_readl( par->regs, TLCD_REG_CURSORXY));
+    PRINT_D("TLCD_REG_MODE=0x%08x",	    think_readl( par->regs, TLCD_REG_MODE));
+    PRINT_D("TLCD_REG_CLKCTRL=0x%08x", 	    think_readl( par->regs, TLCD_REG_CLKCTRL));
+    PRINT_D("TLCD_REG_BGCOLOR=0x%08x",	    think_readl( par->regs, TLCD_REG_BGCOLOR));
+    PRINT_D("TLCD_REG_RESXY=0x%08x",	    think_readl( par->regs, TLCD_REG_RESXY));
+    PRINT_D("TLCD_REG_STRIDE=0x%08x",	    think_readl( par->regs, TLCD_REG_STRIDE));
+    PRINT_D("TLCD_REG_FRONTPORCHXY=0x%08x", think_readl( par->regs, TLCD_REG_FRONTPORCHXY));
+    PRINT_D("TLCD_REG_BLANKINGXY=0x%08x",   think_readl( par->regs, TLCD_REG_BLANKINGXY));
+    PRINT_D("TLCD_REG_BACKPORCHXY=0x%08x",  think_readl( par->regs, TLCD_REG_BACKPORCHXY));
+    PRINT_D("TLCD_REG_CURSORXY=0x%08x",	    think_readl( par->regs, TLCD_REG_CURSORXY));
 
     /* Layer registers. */
-    PRINT_D("TLCD_REG_LAYER_MODE(%d)=0x%08x", 	  layer, think_readl( par->regs, TLCD_REG_LAYER_MODE(layer) ));
-    PRINT_D("TLCD_REG_LAYER_STARTXY(%d)=0x%08x", layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
-    PRINT_D("TLCD_REG_LAYER_SIZEXY(%d)=0x%08x",  layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
+    PRINT_D("TLCD_REG_LAYER_MODE(%d)=0x%08x", 	     layer, think_readl( par->regs, TLCD_REG_LAYER_MODE(layer) ));
+    PRINT_D("TLCD_REG_LAYER_STARTXY(%d)=0x%08x",     layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
+    PRINT_D("TLCD_REG_LAYER_SIZEXY(%d)=0x%08x",      layer, think_readl( par->regs, TLCD_REG_LAYER_STARTXY(layer) ));
     PRINT_D("TLCD_REG_LAYER_BASEADDR(%d)(v)=0x%08x", layer, think_readl( par->regs, TLCD_REG_LAYER_BASEADDR(layer) ));
-    PRINT_D("TLCD_REG_LAYER_STRIDE(%d)=0x%08x",  layer, think_readl( par->regs, TLCD_REG_LAYER_STRIDE(layer) ));
-    PRINT_D("TLCD_REG_LAYER_RESXY(%d)=0x%08x",   layer, think_readl( par->regs, TLCD_REG_LAYER_RESXY(layer) ));
-    PRINT_D("TLCD_REG_LAYER_SCALEX(%d)=0x%08x",  layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEX(layer) ));
-    PRINT_D("TLCD_REG_LAYER_SCALEY(%d)=0x%08x",  layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEY(layer) ));
+    PRINT_D("TLCD_REG_LAYER_STRIDE(%d)=0x%08x",      layer, think_readl( par->regs, TLCD_REG_LAYER_STRIDE(layer) ));
+    PRINT_D("TLCD_REG_LAYER_RESXY(%d)=0x%08x",       layer, think_readl( par->regs, TLCD_REG_LAYER_RESXY(layer) ));
+    PRINT_D("TLCD_REG_LAYER_SCALEX(%d)=0x%08x",      layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEX(layer) ));
+    PRINT_D("TLCD_REG_LAYER_SCALEY(%d)=0x%08x",      layer, think_readl( par->regs, TLCD_REG_LAYER_SCALEY(layer) ));
 }
 
 static struct fb_ops thinklcdml_ops = {
@@ -1294,14 +1294,14 @@ static struct platform_driver thinklcdml_driver = {
 	.name  = "thinklcdml",
     },
 
-    .probe	= thinklcdml_probe,
+    .probe  = thinklcdml_probe,
     .remove = thinklcdml_remove,
 };
 
 static struct platform_device thinklcdml_device = {
-    .name	= "thinklcdml",
-    .id	    = 0,
-    .dev	= {
+    .name = "thinklcdml",
+    .id	  = 0,
+    .dev  = {
 	.release = thinklcdml_platform_release,
     }
 };
