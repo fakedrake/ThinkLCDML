@@ -128,3 +128,6 @@ Segmentation fault
    no guarantee that they work and they are undocumented. This will
    probably be resolved while creating the load script but test this
    around a bit.
+** Commands
+   Interact with the mode through text commands. Even resolution
+   should be able to be reset.
