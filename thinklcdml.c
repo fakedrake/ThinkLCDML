@@ -188,7 +188,7 @@ static unsigned int fb_hard = 0; // fb_hard means: 0, from __get_free_pages. 1, 
 static unsigned long physical_register_base __initdata = TLCD_PHYSICAL_BASE;
 static unsigned long fb_addr __initdata = 0x00000000;
 static struct fb_var_screeninfo default_var __initdata;
-static unsigned long virtual_regs_base = 0, color_mode = TLCD_MODE_RGBA8888;
+static unsigned long virtual_regs_base = 0, color_mode = TLCD_MODE_RGBA8888; // color_mode -> 0
 static char* module_options __initdata = NULL;
 
 static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info);
@@ -212,6 +212,7 @@ static void dump_regs( struct thinklcdml_par *par, int layer)
     PRINT_D("*** ThinkLCDML register dump!***");
 
     /* Global registers. */
+    PRINT_D("TLCD_REG_CONFIG=0x%08x",	    think_readl( par->regs, TLCD_REG_CONFIG));
     PRINT_D("TLCD_REG_MODE=0x%08x",	    think_readl( par->regs, TLCD_REG_MODE));
     PRINT_D("TLCD_REG_CLKCTRL=0x%08x", 	    think_readl( par->regs, TLCD_REG_CLKCTRL));
     PRINT_D("TLCD_REG_BGCOLOR=0x%08x",	    think_readl( par->regs, TLCD_REG_BGCOLOR));
@@ -221,6 +222,9 @@ static void dump_regs( struct thinklcdml_par *par, int layer)
     PRINT_D("TLCD_REG_BLANKINGXY=0x%08x",   think_readl( par->regs, TLCD_REG_BLANKINGXY));
     PRINT_D("TLCD_REG_BACKPORCHXY=0x%08x",  think_readl( par->regs, TLCD_REG_BACKPORCHXY));
     PRINT_D("TLCD_REG_CURSORXY=0x%08x",	    think_readl( par->regs, TLCD_REG_CURSORXY));
+    PRINT_D("TLCD_REG_IDREG=0x%08x",	    think_readl( par->regs, TLCD_REG_IDREG));
+    PRINT_D("TLCD_REG_STATUS=0x%08x",	    think_readl( par->regs, TLCD_REG_STATUS));
+    PRINT_D("TLCD_REG_INTERRUPT=0x%08x",    think_readl( par->regs, TLCD_REG_INTERRUPT));
 
     /* Layer registers. */
     PRINT_D("TLCD_REG_LAYER_MODE(%d)=0x%08x", 	     layer, think_readl( par->regs, TLCD_REG_LAYER_MODE(layer) ));
@@ -390,9 +394,9 @@ static int thinklcdml_set_par(struct fb_info *info)
     think_writel(par->regs, TLCD_REG_LAYER_RESXY(OL(info)),  XY16TOREG32(info->var.xres +   0, info->var.yres +  0));
     think_writel(par->regs, TLCD_REG_RESXY,                  XY16TOREG32(info->var.xres +   0, info->var.yres +  0));
     think_writel(par->regs, TLCD_REG_LAYER_SIZEXY(OL(info)), XY16TOREG32(info->var.xres +   0, info->var.yres +  0));
-    think_writel(par->regs, TLCD_REG_FRONTPORCHXY,           XY16TOREG32(info->var.xres +  40, info->var.yres + 10));
-    think_writel(par->regs, TLCD_REG_BLANKINGXY,             XY16TOREG32(info->var.xres +  41, info->var.yres + 11));
-    think_writel(par->regs, TLCD_REG_BACKPORCHXY,            XY16TOREG32(info->var.xres + 257, info->var.yres + 46));
+    think_writel(par->regs, TLCD_REG_FRONTPORCHXY,           XY16TOREG32(info->var.xres + 0x20, info->var.yres + 0x1));
+    think_writel(par->regs, TLCD_REG_BLANKINGXY,             XY16TOREG32(info->var.xres + 0xbc, info->var.yres + 0x5));
+    think_writel(par->regs, TLCD_REG_BACKPORCHXY,            XY16TOREG32(info->var.xres + 0x114, info->var.yres + 0x1c));
 
     /* Decide on color mode */
     switch(info->var.bits_per_pixel) {
@@ -448,23 +452,24 @@ static int thinklcdml_set_par(struct fb_info *info)
     par->mode = mode & 0x3;
 
     /* Get reg mode */
+    /* XXX: mode 80000000, front proch */
     mode_layer = think_readl(par->regs, TLCD_REG_MODE) & mask;
     mode_layer = TLCD_CONFIG_ENABLE | (mode_layer & ~0x3) | par->mode;
 
-    think_writel (virtual_regs_base, TLCD_REG_MODE , mode_layer);
+    think_writel (virtual_regs_base, TLCD_REG_MODE , 1<<31);
     think_writel (virtual_regs_base, TLCD_REG_CLKCTRL, TLCD_CLKCTRL);
     think_writel (virtual_regs_base, TLCD_REG_BGCOLOR , TLCD_BGCOLOR);
 
     /* XXX: Get rid of this one way or another */
     think_writel(virtual_regs_base, 0x2c , 0x00000000); /* XXX: what register is 0x2c? */
-    think_writel(virtual_regs_base, TLCD_REG_LAYER_MODE(0), 0x88ff0102);
-
-    dump_regs(par, OL(info));
+    /* think_writel(virtual_regs_base, TLCD_REG_LAYER_MODE(0), 0x88ff0102); */
 
     PRINT_D ("Actually enabling fb%d", OL(info));
     /* Enable, global full alpha, color mode as defined. */
     think_writel(par->regs, TLCD_REG_LAYER_MODE(OL(info)), ((TLCD_CONFIG_ENABLE) | (0xff<<16) | (mode_layer & 0x3)));
     think_writel(par->regs, TLCD_REG_LAYER_STRIDE(OL(info)), info->fix.line_length);
+
+    dump_regs(par, OL(info));
 
     return 0;
 }
@@ -722,7 +727,7 @@ static int __init thinklcdml_setup(char *options, char* separator)
 
     if (!options || !*options) {
 	/* Default to low resolution, Add video=thinklcdml:... to kernel command line */
-	PRINT_I("Defaulting to 1024x768 16-bit palette mode\n");
+	PRINT_I("No user setup options: Defaulting to %dx%d, bpp: %d, color mode: 0x%lx\n", default_var.xres, default_var.yres, default_var.bits_per_pixel, color_mode);
 	return 1;
     }
 
@@ -1089,8 +1094,8 @@ static int __init thinklcdml_probe(struct platform_device *device)
     unsigned long virtual_start[TLCDML_LAYERS_NUMBER];
     unsigned long physical_start[TLCDML_LAYERS_NUMBER];
     unsigned long page;
-    struct tlcdml_fb_data *drvdata = kmalloc(sizeof(struct tlcdml_fb_data), GFP_KERNEL);
-    unsigned i, alloc_layers = 0;
+    struct tlcdml_fb_data *drvdata = kmalloc(sizeof(struct tlcdml_fb_data), GFP_DMA | GFP_KERNEL);
+    unsigned i, alloc_layers;
 
     PRINT_PROC_ENTRY;
 
@@ -1143,7 +1148,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	    /* GFP_KERNEL means we can do whatever we want with this
 	     * memory. There are no real other options uless you are
 	     * doing something fancy. */
-	    virtual_start[alloc_layers] = (unsigned long) __get_free_pages(GFP_KERNEL, get_order(fb_memsize));
+	    virtual_start[alloc_layers] = (unsigned long) __get_free_pages(GFP_DMA | GFP_KERNEL, get_order(fb_memsize));
 	    if (!virtual_start[alloc_layers]) {
 		PRINT_E("Unable to allocate framebuffer:%u memory (%u bytes order:%u MAX_ORDER:%u)\n", alloc_layers, fb_memsize, get_order(fb_memsize), MAX_ORDER);
 		if (!alloc_layers) {
@@ -1152,8 +1157,9 @@ static int __init thinklcdml_probe(struct platform_device *device)
 		}
 	    }
 	    PRINT_D("Successfully allocated layers.");
-
-	    physical_start[alloc_layers] = __pa(virtual_start[alloc_layers]);
+	    //physical_start[alloc_layers]=0x00000000;
+	    //virtual_start[alloc_layers]=__va(physical_start[alloc_layers]);
+	    physical_start[alloc_layers] = virt_to_phys((void *)virtual_start[alloc_layers]);
 
 	    /* Set page reserved so that mmap will work; this is
 	     * necessary since we'll be remapping normal memory */
@@ -1320,9 +1326,9 @@ int __init thinklcdml_init(void)
 
 
     /* our default mode is 800x480,LUT8 */
-    default_var = m800x480;
-    /* default_var.bits_per_pixel = 8; */
-    /* default_var.red.offset = 0; */
+    default_var = m1024x768;
+    default_var.bits_per_pixel = 32;
+//     default_var.red.offset = 11;
 
 #ifndef MODULE
     /* get options from kernel command line and setup the driver */
