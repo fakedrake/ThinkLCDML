@@ -63,7 +63,7 @@ MODULE_LICENSE("GPL");
 //#define TLCD_POLL_VSYNC
 
 #define TLCD_DEBUG
-#define TLCD_DEBUG_PROCENTRY
+/* #define TLCD_DEBUG_PROCENTRY */
 
 #define OL(info) (MINOR(info->dev->devt))
 
@@ -83,7 +83,7 @@ MODULE_LICENSE("GPL");
 #define PRINT_D(args...)	do { } while(0)
 #endif
 
-#if defined(TLCD_DEBUG_PROCENTRY) || defined(TLCD_DEBUG)
+#if defined(TLCD_DEBUG_PROCENTRY) && defined(TLCD_DEBUG)
 #define PRINT_PROC_ENTRY	do { printk("ThinkLCDML: calling: %s()\n", __FUNCTION__); } while (0)
 #else
 #define PRINT_PROC_ENTRY	do {} while (0)
@@ -466,7 +466,7 @@ static int thinklcdml_set_par(struct fb_info *info)
 
     PRINT_D ("Actually enabling fb%d", OL(info));
     /* Enable, global full alpha, color mode as defined. */
-    think_writel(par->regs, TLCD_REG_LAYER_MODE(OL(info)), ((TLCD_CONFIG_ENABLE) | (0xff<<16) | (mode_layer & 0x3)));
+    think_writel(par->regs, TLCD_REG_LAYER_MODE(OL(info)), ((TLCD_CONFIG_ENABLE) | (0xff<<16) | (mode_layer & 0x7)));
     think_writel(par->regs, TLCD_REG_LAYER_STRIDE(OL(info)), info->fix.line_length);
 
     dump_regs(par, OL(info));
@@ -521,7 +521,7 @@ static int thinklcdml_pan_display(struct fb_var_screeninfo *var, struct fb_info 
     unsigned long address;
 
     PRINT_PROC_ENTRY;
-    PRINT_D("mode:%u xoffset:%u yoffset:%u", var->vmode, var->xoffset, var->yoffset);
+    PRINT_D("Pan: mode:%u xoffset:%u yoffset:%u", var->vmode, var->xoffset, var->yoffset);
 
     /* check bounds */
     if (var->vmode & FB_VMODE_YWRAP ||
@@ -921,9 +921,9 @@ static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned lon
 	PRINT_D ("ioctl: LCDML_COLOR_CLEAR");
 	Bpp = info->var.bits_per_pixel/8;
 	color = arg << (8*( sizeof(unsigned long) - Bpp));
-	PRINT_D ( "clear color: 0x%x (depth: %d, stride: %d, color mode: 0x%lx)", color, info->var.bits_per_pixel, info->fix.line_length, color_mode);
+	PRINT_D ( "clear color: 0x%x (bpp: %d, stride: %d, color mode: 0x%lx)", color, info->var.bits_per_pixel, info->fix.line_length, color_mode);
 
-	memset(info->screen_base, 0, info->fix.line_length * info->var.yres_virtual );
+	memset(info->screen_base, 0x0, info->fix.line_length * info->var.yres_virtual );
 
 	for ( offset = info->screen_base;
 	      (unsigned long)offset < (unsigned long)info->screen_base + info->fix.line_length * info->var.yres_virtual;
@@ -1201,7 +1201,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	    goto err_reg_map;
 	}
     }
-    PRINT_I("Registered %d framebuffer devices.\n", i+1);
+    PRINT_I("Registered %d framebuffer devices.\n", i);
 
     /* initialize the wait object for interrupt */
     init_waitqueue_head(&((struct  thinklcdml_par*)drvdata->infos[0]->par)->wait_vsync);
