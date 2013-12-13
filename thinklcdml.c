@@ -118,7 +118,7 @@ struct thinklcdml_par {
 
 static struct fb_fix_screeninfo thinklcdml_fix __initdata = {
     .id	       = "TSi ThinkLCDML",
-    .type      =  FB_TYPE_PLANES,//FB_TYPE_PACKED_PIXELS,
+    .type      =  FB_TYPE_PACKED_PIXELS,//FB_TYPE_PLANES,
     .xpanstep  = 1,
     .ypanstep  = 1,
     .ywrapstep = 0,
@@ -328,27 +328,27 @@ static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *i
 */
 static int thinklcdml_set_par(struct fb_info *info)
 {
-  
+
     struct thinklcdml_par *par = info->par;
-    
+
     int resx=info->var.xres;
     int resy=info->var.yres;
     int frontporchx = resx +info->var.right_margin;
     int frontporchy = resy +info->var.lower_margin;
-    
+
     int blankx = frontporchx+ info->var.hsync_len;
     int blanky = frontporchy+ info->var.vsync_len;
-    
+
     int backporchx = blankx + info->var.left_margin;
     int backporchy = blanky + info->var.upper_margin;
-    
-    
+
+
     u32 mode, mode_layer, i, mask = 0xffffffff;
     u8 red, green, blue;
 
     PRINT_PROC_ENTRY;
-    
-    
+
+
     think_writel(par->regs, TLCD_REG_LAYER_STARTXY(OL(info)), 0x00000000 );
     think_writel(par->regs, TLCD_REG_LAYER_RESXY(OL(info)),  XY16TOREG32(resx , resy));
     think_writel(par->regs, TLCD_REG_RESXY,                  XY16TOREG32(resx, resy));
@@ -406,7 +406,7 @@ static int thinklcdml_set_par(struct fb_info *info)
     }else{
       mode = 0x5;//0xd;
     }
-    
+
 
     if (par->mode == TLCD_MODE_TEST)
 	PRINT_W("Detected color mode is %u, overriding because we are in test mode!\n", mode);
@@ -426,7 +426,7 @@ static int thinklcdml_set_par(struct fb_info *info)
 
     /* XXX: Get rid of this one way or another */
     //think_writel(virtual_regs_base, 0x2c , 0x00000000); /* XXX: what register is 0x2c? */
-     //think_writel(virtual_regs_base, TLCD_REG_LAYER_MODE(0), 0x88ff0105); 
+     //think_writel(virtual_regs_base, TLCD_REG_LAYER_MODE(0), 0x88ff0105);
 
     PRINT_D ("Actually enabling fb%d", OL(info));
     /* Enable, global full alpha, color mode as defined. */
@@ -567,7 +567,7 @@ static int __init thinklcdml_setup(char *options, char* separator)
     char *this_opt;
     int custom = 0;
     int count = 0;
-  
+
     PRINT_PROC_ENTRY;
 
     if (!options || !*options) {
@@ -577,10 +577,10 @@ static int __init thinklcdml_setup(char *options, char* separator)
     }
 
     while ((this_opt = strsep(&options, separator)) != NULL) {
-      
+
 	if (!*this_opt)
 	    continue;
-	
+
 	if (custom)
 	    switch (count++) {
 	    case 0: default_var.pixclock     = simple_strtoul(this_opt, NULL, 0); break;
@@ -1209,7 +1209,7 @@ int __init thinklcdml_init(void)
 #endif
 
     thinklcdml_setup(options, separator);
-    
+
     /* if the memory size has not been specified in the kernel command line try to allocate as much as we need */
     if (fb_memsize == 0)
 	fb_memsize = PAGE_ALIGN(default_var.xres_virtual * default_var.yres_virtual * (default_var.bits_per_pixel >> 3));
