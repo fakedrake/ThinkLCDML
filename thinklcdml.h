@@ -1,23 +1,22 @@
 #ifndef __THINKLCDML_H__
 #define __THINKLCDML_H__
 
-#define TLCDML_LAYERS_NUMBER 1
+#define TLCDML_LAYERS_NUMBER    1
+#define BUFFERS_PER_LAYER       2
 
 // ThinkLCD hardware constants
 #define LCDBASEADDRESS		0x79000000
-#define TLCD_PHYSICAL_BASE	0x79000000	///< Memory mapped IO base address
-#define TLCD_MMIOALLOC		0x100		///< Register file allocation length in bytes
-#define TLCD_PALETTE_OFFSET	0x400		///< Palette offset in bytes
-#define TLCD_PALETTE_COLORS	256		///< Number of palette colors
-#define TLCD_VSYNC_IRQ		91		///< ThinkLCD vsync irq number
-#define TLCD_ACCEL		0x54736930	///< TSi accelerator code for use in device drivers
-#define TLCD_MODE	(TLCD_CONFIG_ENDIAN | TLCD_CONFIG_AHBLOCK)	///< Default mode bits
+#define TLCD_PHYSICAL_BASE	0x79000000	                                ///< Memory mapped IO base address
+#define TLCD_MMIOALLOC		0x100		                                ///< Register file allocation length in bytes
+#define TLCD_PALETTE_OFFSET	0x400		                                ///< Palette offset in bytes
+#define TLCD_PALETTE_COLORS	256		                                    ///< Number of palette colors
+#define TLCD_VSYNC_IRQ		91		                                    ///< ThinkLCD vsync irq number
+#define TLCD_ACCEL		    0x54736930	                                ///< TSi accelerator code for use in device drivers
+#define TLCD_MODE	        (TLCD_CONFIG_ENDIAN | TLCD_CONFIG_AHBLOCK)	///< Default mode bits
 
 // ThinkLCD cursor
-
-
-#define TLCD_CLKCTRL            0x00000402
-#define TLCD_BGCOLOR            0xFFFF0000
+#define TLCD_CLKCTRL        0x00000402
+#define TLCD_BGCOLOR        0xFFFF0000
 
 // ThinkLCD modes
 #define TLCD_MODE_LUT8		(0x00 | (1<<20))
@@ -28,7 +27,6 @@
 #define TLCD_MODE_RGBA4444	0x05
 #define TLCD_MODE_ARGB8888	0x0d
 #define TLCD_MODE_L8		0x07
-#define TLCD_32Bpp		false
 
 // ThinkLCD register file
 #define TLCD_REG_MODE         	 0x00 /* 0x80000000 */
@@ -39,8 +37,8 @@
 #define TLCD_REG_FRONTPORCHXY 	 0x14 /* 0x04200303 */
 #define TLCD_REG_BLANKINGXY   	 0x18 /* 0x04680306 */
 #define TLCD_REG_BACKPORCHXY  	 0x1c /* 0x04F80320 */
-#define TLCD_REG_CURSORXY	 0x20
-#define TLCD_REG_CONFIG		 0xf0
+#define TLCD_REG_CURSORXY	     0x20
+#define TLCD_REG_CONFIG		     0xf0
 
 #define TLCD_REG_LAYER0_MODE     0x30 /* 0x88ff0102 */
 #define TLCD_REG_LAYER0_STARTXY  0x34 /* 0x04000300 */
@@ -83,14 +81,14 @@
 #define TLCD_REG_INTERRUPT       0xf8
 
 // Layer parametric
-#define TLCD_REG_LAYER_MODE(i) (0x030 + 0x20*(i)) //    ((i)?(0x030 + 0x20*(i-1)):(0x50))
-#define TLCD_REG_LAYER_STARTXY(i) (0x034 + 0x20*(i)) // ((i)?(0x034 + 0x20*(i-1)):(0x54))
-#define TLCD_REG_LAYER_SIZEXY(i) (0x038 + 0x20*(i)) //  ((i)?(0x038 + 0x20*(i-1)):(0x58))
-#define TLCD_REG_LAYER_BASEADDR(i) (0x03c + 0x20*(i)) //((i)?(0x03c + 0x20*(i-1)):(0x5c))
-#define TLCD_REG_LAYER_STRIDE(i) (0x040 + 0x20*(i)) //  ((i)?(0x040 + 0x20*(i-1)):(0x60))
-#define TLCD_REG_LAYER_RESXY(i) (0x044 + 0x20*(i)) //   ((i)?(0x044 + 0x20*(i-1)):(0x64))
-#define TLCD_REG_LAYER_SCALEX(i) (0x048 + 0x20*(i)) //  ((i)?(0x048 + 0x20*(i-1)):(0x68))
-#define TLCD_REG_LAYER_SCALEY(i) (0x04c + 0x20*(i)) //  ((i)?(0x04c + 0x20*(i-1)):(0x6c))
+#define TLCD_REG_LAYER_MODE(i)      (0x030 + 0x20*(i)) //    ((i)?(0x030 + 0x20*(i-1)):(0x50))
+#define TLCD_REG_LAYER_STARTXY(i)   (0x034 + 0x20*(i)) // ((i)?(0x034 + 0x20*(i-1)):(0x54))
+#define TLCD_REG_LAYER_SIZEXY(i)    (0x038 + 0x20*(i)) //  ((i)?(0x038 + 0x20*(i-1)):(0x58))
+#define TLCD_REG_LAYER_BASEADDR(i)  (0x03c + 0x20*(i)) //((i)?(0x03c + 0x20*(i-1)):(0x5c))
+#define TLCD_REG_LAYER_STRIDE(i)    (0x040 + 0x20*(i)) //  ((i)?(0x040 + 0x20*(i-1)):(0x60))
+#define TLCD_REG_LAYER_RESXY(i)     (0x044 + 0x20*(i)) //   ((i)?(0x044 + 0x20*(i-1)):(0x64))
+#define TLCD_REG_LAYER_SCALEX(i)    (0x048 + 0x20*(i)) //  ((i)?(0x048 + 0x20*(i-1)):(0x68))
+#define TLCD_REG_LAYER_SCALEY(i)    (0x04c + 0x20*(i)) //  ((i)?(0x04c + 0x20*(i-1)):(0x6c))
 
 // ThinkLCD mode register bits
 #define TLCD_CONFIG_DISABLE	0
@@ -113,12 +111,15 @@
 #define FBIO_SIF_R          0x42
 #define FBIO_SIF_W          0x43
 
-#define TLCDML_SET_REGISTER 0x44
-#define TLCDML_GET_REGISTER 0x45
-#define TLCDML_COLOR_CLEAR  0x46
-#define TLCDML_GET_INFO     0x47
-#define TLCDML_DUMP_REGS    0x48
-#define TLCDML_GET_LAYER_NUMBER 0x49
+#define TLCDML_SET_REGISTER             0x44
+#define TLCDML_GET_REGISTER             0x45
+#define TLCDML_COLOR_CLEAR              0x46
+#define TLCDML_GET_INFO                 0x47
+#define TLCDML_DUMP_REGS                0x48
+#define TLCDML_GET_LAYER_NUMBER         0x49
+#define TLCDML_GET_NUMBER_OF_BUFFERS    0x50
+#define TLCDML_SWAP_BUFFERS             0x51
+#define TLCDML_GET_CURRENT_BUFFER       0x52
 
 #ifndef FBIO_WAITFORVSYNC
 #define FBIO_WAITFORVSYNC	_IOW('F', 0x20, __u32)
@@ -193,7 +194,5 @@ static struct fb_var_screeninfo m1024x768 __initdata = {
     .hsync_len =		136,
     .vsync_len =		6,
 };
-
-
 
 #endif
