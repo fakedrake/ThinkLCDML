@@ -93,6 +93,9 @@ MODULE_LICENSE("GPL");
 #define think_writel(base, offset, val) fb_writel(val, (u32 __iomem *)((unsigned long)(base) + (offset)))
 #define think_writel_D(base, offset, val) do {PRINT_D("0x%08lx:0x%08x\n", (base) + (offset), (val)); think_writel(base, offset, val);} while (0)
 
+#define pll_reg_read(reg)   ioread32( (unsigned *)(pixclkpll_v_regs_base+(reg)) )
+#define pll_reg_write(reg, value) iowrite32((value),  (unsigned *)(pixclkpll_v_regs_base+(reg)) )
+
 #define XY16TOREG32(x, y) ((x) << 16 | ((y) & 0xffff))
 #define CLAMP255(i) ( ((i)<0) ? 0 : ((i)>255) ? 255 : (i) )
 
@@ -128,11 +131,16 @@ struct tlcdml_fb_data {
 
 static unsigned int fb_memsize              __initdata = 3145728;
 static unsigned long physical_register_base __initdata = TLCD_PHYSICAL_BASE;
-static unsigned long fb_addr                __initdata = 0x10000000;
+static unsigned long fb_addr                __initdata = 0x100000000;
 static char* module_options                 __initdata = NULL;
 static struct fb_var_screeninfo default_var __initdata;
 static unsigned int fb_hard                            = 0;                     // fb_hard means: 0, from __get_free_pages. 1, ioremap. 2, no allocation (see thinklcdml_setfbmem)
 static unsigned long virtual_regs_base = 0, color_mode = TLCD_MODE_RGBA8888;    // color_mode -> 0
+
+#ifdef USE_PLL
+static unsigned long pixclkpll_v_regs_base = 0;
+#endif
+
 bool LCD_Bpp = false;
 int MODE_RES = 0;                                                               // 0 = 640x480 | 1 = 800x600 | 2 = 1024x768
 
@@ -325,7 +333,14 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 static int
 thinklcdml_set_par(struct fb_info *info)
 {
+    PRINT_PROC_ENTRY;
     struct thinklcdml_par *par = info->par;
+
+    PRINT_D("Res: %dx%d\n", info->var.xres, info->var.yres);
+    PRINT_D("Margins: L:%d, R:%d, U:%d, D:%d\n", info->var.left_margin, info->var.right_margin, info->var.upper_margin, info->var.lower_margin);
+    PRINT_D("bpp: %d\n", info->var.bits_per_pixel);
+    PRINT_D("offsets: R:%d, G:%d, B:%d, A:%d\n", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
+    PRINT_D("PixClock: %d\n", info->var.pixclock);
 
     int resx        = info->var.xres;
     int resy        = info->var.yres;
@@ -338,8 +353,6 @@ thinklcdml_set_par(struct fb_info *info)
 
     u32 mode, mode_layer, i, mask = 0xffffffff;
     u8 red, green, blue;
-
-    PRINT_PROC_ENTRY;
 
     PRINT_D("right_margin = %d", info->var.right_margin);
     PRINT_D("lower_margin = %d", info->var.lower_margin);
@@ -379,7 +392,26 @@ thinklcdml_set_par(struct fb_info *info)
     case 32:
         info->fix.visual = FB_VISUAL_TRUECOLOR;
         mask &= ~(1<<20);
-        mode = info->var.transp.offset || info->var.red.offset == 16 ? TLCD_MODE_ARGB8888 : TLCD_MODE_RGBA8888;
+        if ( info->var.transp.offset == 24 ) {
+            if ( info->var.red.offset == 16 && info->var.green.offset == 8 && info->var.blue.offset == 0 )
+                mode = TLCD_MODE_ARGB8888;
+            else if ( info->var.red.offset == 0 && info->var.green.offset == 8 && info->var.blue.offset == 16 )
+                mode = TLCD_MODE_ABGR8888;
+            else {
+                PRINT_W("Unsupported mode: R:%d, G:%d, B:%d, A:%d. Switching to RGBA8888\n", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
+                mode = TLCD_MODE_RGBA8888;
+            }
+        }
+        else if ( info->var.transp.offset == 0 ) {
+            if ( info->var.red.offset == 24 && info->var.green.offset == 16 && info->var.blue.offset == 8 )
+                mode = TLCD_MODE_RGBA8888;
+            else if ( info->var.red.offset == 8 && info->var.green.offset == 16 && info->var.blue.offset == 24 )
+                mode = TLCD_MODE_BGRA8888;
+            else {
+                PRINT_W("Unsupported mode: R:%d, G:%d, B:%d, A:%d. Switching to RGBA8888\n", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
+                mode = TLCD_MODE_RGBA8888;
+            }
+        }
 
         break;
     default:
@@ -389,11 +421,6 @@ thinklcdml_set_par(struct fb_info *info)
 
         return -EINVAL;
     }
-
-    if (LCD_Bpp)
-        mode = 0xd;//0xd;
-    else
-        mode = 0x5;//0xd;
 
     if (par->mode == TLCD_MODE_TEST)
         PRINT_W("Detected color mode is %u, overriding because we are in test mode!\n", mode);
@@ -405,9 +432,15 @@ thinklcdml_set_par(struct fb_info *info)
     /* Get reg mode */
     /* XXX: mode 80000000, front proch */
     mode_layer = think_readl(par->regs, TLCD_REG_MODE) & mask;
-    mode_layer = TLCD_CONFIG_ENABLE | (mode_layer & ~0x3) | par->mode;
+    mode_layer = TLCD_CONFIG_ENABLE | (mode_layer & ~0xf) | par->mode;
 
-    think_writel (virtual_regs_base, TLCD_REG_MODE , 1<<31);
+    /// TLCD_REG_MODE needs 0x2c0 for ZYNQ702 and 0x3c0 when TLCD_CLKCTRL sets clock divider to 2 (0x402)
+#ifdef ZC702
+    think_writel (virtual_regs_base, TLCD_REG_MODE , 1<<31 | 1<<22 | 0x2c0 | ((TLCD_CLKCTRL & 0x2) << 7) );
+#else
+    think_writel (virtual_regs_base, TLCD_REG_MODE , 1<<31 | 1<<22);
+#endif
+
     think_writel (virtual_regs_base, TLCD_REG_CLKCTRL, TLCD_CLKCTRL);
     think_writel (virtual_regs_base, TLCD_REG_BGCOLOR , TLCD_BGCOLOR);
 
@@ -420,6 +453,46 @@ thinklcdml_set_par(struct fb_info *info)
     think_writel(par->regs, TLCD_REG_LAYER_MODE(OL(info)), ((TLCD_CONFIG_ENABLE) | (0xff<<16) | (mode_layer & 0xf)));
     think_writel(par->regs, TLCD_REG_LAYER_STRIDE(OL(info)), info->fix.line_length);
     // think_writel(par->regs, TLCD_REG_LAYER_STRIDE(OL(info)), 0x4ec0);
+
+#ifdef USE_PLL
+    if ( pixclkpll_v_regs_base == 0) {
+        PRINT_D("Performing ioremap for PixClkPll registers (physical base: 0x%08lx, len: 0x%08x).", PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
+        pixclkpll_v_regs_base = (unsigned long)ioremap_nocache(PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
+        if (!pixclkpll_v_regs_base) {
+            PRINT_E("MMIO remap for PixClkPll register file failed\n");
+        } else
+            PRINT_I("MMIO for PixClkPll register file PA:0x%08lx -> VA:0x%08lx len:%u\n", physical_register_base, virtual_regs_base, TLCD_MMIOALLOC);
+    }
+
+    PRINT_D("PLL MAGIC = 0x%x (== 0xc350)", pll_reg_read(0x210));
+    PRINT_I("Programming PLL:\n");
+    PRINT_I("1/5\n");
+    pll_reg_write(PIXCLKPLL_RESET,        0xa);
+
+//    while ( pll_reg_read(PIXCLKPLL_STATUS)) ) ;
+    volatile int delay = 1000000;
+    PRINT_D("PIXCLKPLL_STATUS = 0x%08x ", pll_reg_read(PIXCLKPLL_STATUS));
+    PRINT_I("2/5\n");
+    PRINT_D("PIXCLKPLL_CLK0DIV = 0x%08x ", pll_reg_read(PIXCLKPLL_CLK0DIV));
+    pll_reg_write(PIXCLKPLL_CLK0DIV,      0x00000032);
+    delay = 1000000; while( delay-- );
+    PRINT_I("3/5\n");
+    PRINT_D("PIXCLKPLL_GLOBMULDIV = 0x%08x\n", pll_reg_read(PIXCLKPLL_GLOBMULDIV));
+
+    u32 glmuldiv = (((u32) (1000000 / info->var.pixclock)) <<  8) | 0x01;
+    PRINT_D("NEW PIXCLKPLL_GLOBMULDIV = 0x%08x\n", glmuldiv);
+
+
+    pll_reg_write(PIXCLKPLL_GLOBMULDIV,   glmuldiv);
+    delay = 1000000; while( delay-- );
+    PRINT_I("4/5\n");
+    pll_reg_write(PIXCLKPLL_LOAD,         0x7);
+    delay = 1000000; while( delay-- );
+    PRINT_I("5/5\n");
+    pll_reg_write(PIXCLKPLL_LOAD,         0x2);
+    delay = 1000000; while( delay-- );
+    PRINT_I("Done Programming PLL!\n");
+#endif
 
     dump_regs(par, OL(info));
 
@@ -1117,6 +1190,56 @@ thinklcdml_probe(struct platform_device *device)
 
     /// Keep a copy of the device struct
     lcd_device = *device;
+
+#ifdef USE_PLL
+    /// Request MMIO for PixClkPll
+    if (!request_mem_region(PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC, device->name)) {
+        PRINT_E("Request for MMIO for PixClkPll register file was negative.\n");
+        goto err_irq_setup;
+    }
+
+
+    if ( pixclkpll_v_regs_base == 0) {
+        PRINT_D("Performing ioremap for PixClkPll registers (physical base: 0x%08lx, len: 0x%08x).", PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
+        pixclkpll_v_regs_base = (unsigned long)ioremap_nocache(PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
+        if (!pixclkpll_v_regs_base) {
+            PRINT_E("MMIO remap for PixClkPll register file failed\n");
+            goto err_irq_setup;
+        } else
+            PRINT_I("MMIO for PixClkPll register file PA:0x%08lx -> VA:0x%08lx len:%u\n", physical_register_base, virtual_regs_base, TLCD_MMIOALLOC);
+    }
+
+    PRINT_D("PLL MAGIC = 0x%x (== 0xc350)", pll_reg_read(0x210));
+//    pll_reg_write(0x210, 0xdead);
+//    PRINT_D("PLL MAGIC = 0x%x (== 0xc350)", pll_reg_read(0x210));
+//    pll_reg_write(0x210, 0xc350);
+//    PRINT_D("PLL MAGIC = 0x%x (== 0xc350)", pll_reg_read(0x210));
+
+
+    PRINT_I("Programming PLL:\n");
+    PRINT_I("1/5\n");
+    pll_reg_write(PIXCLKPLL_RESET,        0xa);
+
+//    while ( pll_reg_read(PIXCLKPLL_STATUS)) ) ;
+    volatile int delay = 1000000;
+    PRINT_D("PIXCLKPLL_STATUS = 0x%08x ", pll_reg_read(PIXCLKPLL_STATUS));
+    PRINT_I("2/5\n");
+//    PRINT_D("PIXCLKPLL_CLK0DIV = 0x%08x ", pll_reg_read(PIXCLKPLL_CLK0DIV));
+    pll_reg_write(PIXCLKPLL_CLK0DIV,      0x00000032);
+    delay = 1000000; while( delay-- );
+    PRINT_I("3/5\n");
+//    PRINT_D("PIXCLKPLL_GLOBMULDIV = 0x%08x ", pll_reg_read(PIXCLKPLL_GLOBMULDIV));
+    pll_reg_write(PIXCLKPLL_GLOBMULDIV,   0x00002801);
+    delay = 1000000; while( delay-- );
+    PRINT_I("4/5\n");
+    pll_reg_write(PIXCLKPLL_LOAD,         0x7);
+    delay = 1000000; while( delay-- );
+    PRINT_I("5/5\n");
+    pll_reg_write(PIXCLKPLL_LOAD,         0x2);
+    delay = 1000000; while( delay-- );
+    PRINT_I("Done Programming PLL!\n");
+#endif
+
     return 0;
 
     // XXX: check how error interact with the creation of multiple

@@ -4,6 +4,20 @@
 #define TLCDML_LAYERS_NUMBER    1
 #define BUFFERS_PER_LAYER       2
 
+#define ZC702
+
+/// PIXCLK_PLL hardware constants
+//#define USE_PLL
+#ifdef USE_PLL
+#define PIXCLKPLL_BASEADDR	    0x43c10000
+#define PIXCLKPLL_MMIOALLOC     0x260
+#define PIXCLKPLL_RESET		    0x0
+#define PIXCLKPLL_STATUS	    0x4
+#define PIXCLKPLL_GLOBMULDIV    0x200
+#define PIXCLKPLL_CLK0DIV       0x208
+#define PIXCLKPLL_LOAD          0x25c
+#endif
+
 // ThinkLCD hardware constants
 #define LCDBASEADDRESS		0x79000000
 #define TLCD_PHYSICAL_BASE	0x79000000	                                ///< Memory mapped IO base address
@@ -15,7 +29,7 @@
 #define TLCD_MODE	        (TLCD_CONFIG_ENDIAN | TLCD_CONFIG_AHBLOCK)	///< Default mode bits
 
 // ThinkLCD cursor
-#define TLCD_CLKCTRL        0x00000402
+#define TLCD_CLKCTRL        0x00000401
 #define TLCD_BGCOLOR        0xFFFF0000
 
 // ThinkLCD modes
@@ -25,7 +39,9 @@
 #define TLCD_MODE_TEST		0x03
 #define TLCD_MODE_RGB332	0x04
 #define TLCD_MODE_RGBA4444	0x05
-#define TLCD_MODE_ARGB8888	0x0d
+#define TLCD_MODE_ARGB8888	0x06
+#define TLCD_MODE_ABGR8888	0x0d
+#define TLCD_MODE_BGRA8888	0x0e
 #define TLCD_MODE_L8		0x07
 
 // ThinkLCD register file
