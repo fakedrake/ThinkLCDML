@@ -54,6 +54,11 @@
 
 #include "thinklcdml.h"
 
+/// for CMA
+#ifdef USE_CMA
+#include <linux/dma-mapping.h>
+#endif
+
 MODULE_LICENSE("GPL");
 
 //TODO: Does it work as a module?
@@ -103,6 +108,60 @@ MODULE_LICENSE("GPL");
 
 //#include "dpls_sif.c"
 //#define SENSOR_IN_ADDR 0x400000
+
+#ifdef USE_CMA
+struct cma_allocation {
+   struct list_head list;
+   size_t size;
+   dma_addr_t dma;
+   void *virt;
+};
+
+static struct cma_allocation alloc[TLCDML_LAYERS_NUMBER];
+
+static int thinklcdml_dealloc_layer( int layer) {
+    TLCD_DEBUG_PROCENTRY;
+
+    if ( alloc[layer].virt ) {
+        dma_free_coherent(NULL, alloc[layer].size, alloc[layer].virt, alloc[layer].dma);
+        alloc[layer].virt = NULL;
+        alloc[layer].size = 0;
+    }
+
+    return 0;
+}
+
+static int thinklcdml_alloc_layer( int layer, size_t size ) {
+	TLCD_DEBUG_PROCENTRY;
+
+    if ( alloc[layer].virt ) {
+        if ( alloc[layer].size < size ) {
+            thinklcdml_dealloc_layer(layer);
+        }
+        else {
+            // existing fb size is more than enough, no need to allocate...
+            // TODO: maybe some resizing would be nice...
+            return 0;
+        }
+    }
+
+    alloc[layer].size = size;
+    alloc[layer].virt = dma_alloc_coherent(NULL, alloc[layer].size,
+       &alloc[layer].dma, GFP_KERNEL);
+
+    if (alloc[layer].virt) {
+        PRINT_D("Layer %d: virt: %p dma: %p size: %zuK\n", layer, alloc[layer].virt, (void *)alloc[layer].dma, alloc[layer].size / SZ_1K);
+        return 0;
+    } else {
+        PRINT_E("no mem in CMA area\n");
+        alloc[layer].virt = NULL;
+        alloc[layer].size = 0;
+        return -ENOSPC;
+    }
+
+	return 0;
+}
+#endif
 
 struct thinklcdml_par {
     unsigned long regs;
@@ -1081,7 +1140,6 @@ thinklcdml_probe(struct platform_device *device)
      * layers. */
     physical_start[0] = fb_addr;
 
-
     if (fb_hard) {
         PRINT_D("Static allocation of framebuffers.");
 
@@ -1120,9 +1178,14 @@ thinklcdml_probe(struct platform_device *device)
             /* GFP_KERNEL means we can do whatever we want with this
              * memory. There are no real other options uless you are
              * doing something fancy. */
+#ifdef USE_CMA
+            thinklcdml_alloc_layer(alloc_layers, fb_memsize);
+            virtual_start[alloc_layers] = alloc[alloc_layers].virt;
+#else
             virtual_start[alloc_layers] = (unsigned long) __get_free_pages(GFP_DMA | GFP_KERNEL, get_order(fb_memsize));
+#endif
             if (!virtual_start[alloc_layers]) {
-                PRINT_E("Unable to allocate framebuffer:%u memory (%u bytes order:%u MAX_ORDER:%u)\n", alloc_layers, fb_memsize, get_order(fb_memsize), MAX_ORDER);
+                PRINT_E("Unable to allocate framebuffer:%u memory \n", alloc_layers, fb_memsize);
                 if (!alloc_layers) {
                     retval = -ENOMEM;
                     goto err_fb_mem_alloc;
@@ -1262,8 +1325,13 @@ err_fb_mem_alloc:
             release_mem_region(physical_start[i], fb_memsize);
         }
     } else
-        for (i=0; i<alloc_layers; i++)
+        for (i=0; i<alloc_layers; i++) {
+#ifdef USE_CMA
+            thinklcdml_dealloc_layer(i);
+#else
             free_pages(virtual_start[i], get_order(fb_memsize));
+#endif
+        }
 
     return retval;
 }
@@ -1303,7 +1371,13 @@ thinklcdml_remove(struct platform_device *device)
                 ClearPageReserved(virt_to_page((void *)page));
 
             /* and free the pages */
+#ifdef USE_CMA
+            for (i = 0; i < TLCDML_LAYERS_NUMBER; ++i) {
+                thinklcdml_dealloc_layer(i);
+            }
+#else
             free_pages((unsigned long)info->screen_base, get_order(info->screen_size));
+#endif
         }
         unregister_framebuffer(info);
         framebuffer_release(info);
@@ -1349,6 +1423,14 @@ thinklcdml_init(void)
 
     PRINT_PROC_ENTRY;
     printk("ThinkLCDML Multilayer kernel driver\n");
+
+#ifdef USE_CMA
+    int i;
+    for ( i = 0; i < TLCDML_LAYERS_NUMBER; ++i) {
+        alloc[i].virt = NULL;
+        alloc[i].size = 0;
+    }
+#endif
 
 
     /* our default mode is 800x480,LUT8 */
