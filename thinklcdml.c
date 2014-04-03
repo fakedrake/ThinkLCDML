@@ -120,7 +120,7 @@ struct cma_allocation {
 static struct cma_allocation alloc[TLCDML_LAYERS_NUMBER];
 
 static int thinklcdml_dealloc_layer( int layer) {
-    TLCD_DEBUG_PROCENTRY;
+    PRINT_PROC_ENTRY;
 
     if ( alloc[layer].virt ) {
         dma_free_coherent(NULL, alloc[layer].size, alloc[layer].virt, alloc[layer].dma);
@@ -132,7 +132,7 @@ static int thinklcdml_dealloc_layer( int layer) {
 }
 
 static int thinklcdml_alloc_layer( int layer, size_t size ) {
-	TLCD_DEBUG_PROCENTRY;
+	PRINT_PROC_ENTRY;
 
     if ( alloc[layer].virt ) {
         if ( alloc[layer].size < size ) {
