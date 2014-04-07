@@ -6,6 +6,7 @@
 
 #define ZC702
 //#define USE_CMA
+#define USE_CMA
 
 /// PIXCLK_PLL hardware constants
 //#define USE_PLL

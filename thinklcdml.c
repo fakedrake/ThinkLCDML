@@ -188,7 +188,7 @@ struct tlcdml_fb_data {
     struct fb_info* infos[TLCDML_LAYERS_NUMBER];
 };
 
-static unsigned int fb_memsize              __initdata = 3145728;
+static unsigned int fb_memsize              __initdata = 800*600*4*8;
 static unsigned long physical_register_base __initdata = TLCD_PHYSICAL_BASE;
 static unsigned long fb_addr                __initdata = 0x100000000;
 static char* module_options                 __initdata = NULL;
@@ -367,6 +367,7 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
     case 32:
         if (var->transp.offset || var->red.offset == 16) {
             /* ARGB 8888 */
+            if ( var->transp.length != 0 )
             var->transp = (struct fb_bitfield) { 24, 8, 0 };
             var->red    = (struct fb_bitfield) { 16, 8, 0 };
             var->green  = (struct fb_bitfield) {  8, 8, 0 };
@@ -376,6 +377,7 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
             var->red    = (struct fb_bitfield) { 24, 8, 0 };
             var->green  = (struct fb_bitfield) { 16, 8, 0 };
             var->blue   = (struct fb_bitfield) {  8, 8, 0 };
+            if ( var->transp.length != 0 )
             var->transp = (struct fb_bitfield) {  0, 8, 0 };
         }
 
@@ -451,25 +453,18 @@ thinklcdml_set_par(struct fb_info *info)
     case 32:
         info->fix.visual = FB_VISUAL_TRUECOLOR;
         mask &= ~(1<<20);
-        if ( info->var.transp.offset == 24 ) {
-            if ( info->var.red.offset == 16 && info->var.green.offset == 8 && info->var.blue.offset == 0 )
-                mode = TLCD_MODE_ARGB8888;
-            else if ( info->var.red.offset == 0 && info->var.green.offset == 8 && info->var.blue.offset == 16 )
-                mode = TLCD_MODE_ABGR8888;
-            else {
-                PRINT_W("Unsupported mode: R:%d, G:%d, B:%d, A:%d. Switching to RGBA8888\n", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
-                mode = TLCD_MODE_RGBA8888;
-            }
-        }
-        else if ( info->var.transp.offset == 0 ) {
-            if ( info->var.red.offset == 24 && info->var.green.offset == 16 && info->var.blue.offset == 8 )
-                mode = TLCD_MODE_RGBA8888;
-            else if ( info->var.red.offset == 8 && info->var.green.offset == 16 && info->var.blue.offset == 24 )
-                mode = TLCD_MODE_BGRA8888;
-            else {
-                PRINT_W("Unsupported mode: R:%d, G:%d, B:%d, A:%d. Switching to RGBA8888\n", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
-                mode = TLCD_MODE_RGBA8888;
-            }
+
+        if (      info->var.red.offset == 16 && info->var.green.offset == 8  && info->var.blue.offset == 0  )
+            mode = TLCD_MODE_ARGB8888;
+        else if ( info->var.red.offset == 0  && info->var.green.offset == 8  && info->var.blue.offset == 16 )
+            mode = TLCD_MODE_ABGR8888;
+        else if ( info->var.red.offset == 24 && info->var.green.offset == 16 && info->var.blue.offset == 8  )
+            mode = TLCD_MODE_RGBA8888;
+        else if ( info->var.red.offset == 8  && info->var.green.offset == 16 && info->var.blue.offset == 24 )
+            mode = TLCD_MODE_BGRA8888;
+        else {
+            PRINT_W("Unsupported mode: R:%d, G:%d, B:%d, A:%d. Switching to RGBA8888\n", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
+            mode = TLCD_MODE_RGBA8888;
         }
 
         break;
@@ -1436,7 +1431,6 @@ thinklcdml_init(void)
     /* our default mode is 800x480,LUT8 */
     default_var = m800x600;
     default_var.bits_per_pixel = 32;
-//     default_var.red.offset = 11;
 
 #ifndef MODULE
     /* get options from kernel command line and setup the driver */
@@ -1447,12 +1441,9 @@ thinklcdml_init(void)
     PRINT_D("options string: %s\n", options);
 
     thinklcdml_setup(options, separator);
-    default_var.yres_virtual = default_var.yres * BUFFERS_PER_LAYER;
 
     /* if the memory size has not been specified in the kernel command line try to allocate as much as we need */
-//    if (fb_memsize == 0)
-    fb_memsize = PAGE_ALIGN(default_var.xres_virtual * default_var.yres_virtual * (default_var.bits_per_pixel >> 3));
-    PRINT_D("1 fb_memsize = %d bpp = %d\n", fb_memsize, default_var.bits_per_pixel);
+//	fb_memsize = PAGE_ALIGN(default_var.xres_virtual * default_var.yres_virtual * (default_var.bits_per_pixel >> 3));
 
     /* finish default mode setup */
     default_var.height   = -1;
