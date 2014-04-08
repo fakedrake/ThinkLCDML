@@ -314,8 +314,10 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
         var->bits_per_pixel = 16;
     else if (var->bits_per_pixel <= 32)
         var->bits_per_pixel = 32;
-    else
+    else {
+        printk("Exiting @%d\n", __LINE__);
         return -EINVAL;
+    }
 
     /* Virtual resolution setup. */
     if (var->xres_virtual < var->xoffset + var->xres)
@@ -743,7 +745,7 @@ thinklcdml_setup(char *options, char* separator)
                     default_var.transp.length = 1;
                     default_var.transp.offset = 0;
                     color_mode = TLCD_MODE_RGBA5551;
-                    printk(KERN_INFO    "!!!!!");
+//                    printk(KERN_INFO    "!!!!!");
                 } else if (!strcmp(this_opt, "RGB32")) {
                     /*default_var.bits_per_pixel = 32;
                     default_var.red.offset = 24;
@@ -763,8 +765,10 @@ thinklcdml_setup(char *options, char* separator)
                     default_var.green.length = 8;
                     default_var.blue.offset = 0;
                     default_var.blue.length = 8;
+                    default_var.transp.length = 24;
+                    default_var.transp.offset = 0;
                     color_mode = TLCD_MODE_ARGB8888;
-                    printk(KERN_INFO    "!!!!!");
+//                    printk(KERN_INFO    "!!!!!");
                 } else if (!strcmp(this_opt, "TEST")) {
                     PRINT_W("Warning: Test mode enabled, any mode change will silently fail!\n");
                     color_mode = TLCD_MODE_TEST;
@@ -778,7 +782,7 @@ thinklcdml_setup(char *options, char* separator)
                     default_var.blue.offset = 0;
                     default_var.blue.length = 2;
                     color_mode = TLCD_MODE_RGB332;
-                    printk(KERN_INFO    "!!!!!");
+//                    printk(KERN_INFO    "!!!!!");
                 } else if (!strcmp(this_opt, "RGBA4444")) {
                     default_var.bits_per_pixel = 16;
                     default_var.red.offset = 11;
@@ -788,7 +792,7 @@ thinklcdml_setup(char *options, char* separator)
                     default_var.blue.offset = 0;
                     default_var.blue.length = 5;
                     color_mode = TLCD_MODE_RGBA4444;
-                    printk(KERN_INFO    "!!!!!");
+//                    printk(KERN_INFO    "!!!!!");
                 } else if (!strcmp(this_opt, "ARGB8888")) {
                     default_var.bits_per_pixel = 32;
                     default_var.red.offset = 16;
@@ -798,7 +802,7 @@ thinklcdml_setup(char *options, char* separator)
                     default_var.blue.offset = 0;
                     default_var.blue.length = 8;
                     color_mode = TLCD_MODE_ARGB8888;
-                    printk(KERN_INFO    "!!!!!");
+//                    printk(KERN_INFO    "!!!!!");
                 } else if (!strcmp(this_opt, "L8"))
                     default_var.bits_per_pixel = 8, default_var.grayscale = 1, color_mode = TLCD_MODE_L8;
                 else {
@@ -825,7 +829,7 @@ thinklcdml_setup(char *options, char* separator)
             MODE_RES = 0;
             custom = 1;
             count = 9;
-            printk(KERN_INFO    "!!640x480!!!");
+//            printk(KERN_INFO    "!!640x480!!!");
         } else if (!strcmp(this_opt, "800x480")) {
             default_var = m800x480;
             custom = 1;
