@@ -351,18 +351,18 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
         break;
 
     case 16:
-        if (var->transp.length) {
+        if (var->transp.length == 4) {
+            /* RGB 4444 */
+            var->red    = (struct fb_bitfield) { 12, 4, 0 };
+            var->green  = (struct fb_bitfield) {  8, 4, 0 };
+            var->blue   = (struct fb_bitfield) {  4, 4, 0 };
+            var->transp = (struct fb_bitfield) {  0, 4, 0 };
+        } else {
             /* RGBA 5551 */
             var->red    = (struct fb_bitfield) { 11, 5, 0 };
             var->green  = (struct fb_bitfield) {  6, 5, 0 };
             var->blue   = (struct fb_bitfield) {  1, 5, 0 };
             var->transp = (struct fb_bitfield) {  0, 1, 0 };
-        } else {
-            /* RGB 565 */
-            var->red    = (struct fb_bitfield) { 11, 5, 0 };
-            var->green  = (struct fb_bitfield) {  5, 6, 0 };
-            var->blue   = (struct fb_bitfield) {  0, 5, 0 };
-            var->transp = (struct fb_bitfield) {  0, 0, 0 };
         }
         break;
 
@@ -449,7 +449,7 @@ thinklcdml_set_par(struct fb_info *info)
     case 16:
         info->fix.visual = FB_VISUAL_TRUECOLOR;
         mask &= ~(1<<20);  /* Make sure there is no look up table. */
-        mode = info->var.transp.length ? TLCD_MODE_RGBA5551 : TLCD_MODE_RGBA4444;
+        mode = info->var.transp.length == 1 ? TLCD_MODE_RGBA5551 : TLCD_MODE_RGBA4444;
 
         break;
     case 32:
