@@ -2,10 +2,10 @@
 #define __THINKLCDML_H__
 
 #define TLCDML_LAYERS_NUMBER    1
-#define BUFFERS_PER_LAYER       2
+#define BUFFERS_PER_LAYER       3
 
 #define ZC702
-//#define USE_CMA
+
 #define USE_CMA
 
 /// PIXCLK_PLL hardware constants
@@ -189,7 +189,7 @@ static struct fb_var_screeninfo m800x600 __initdata = {
     .xres =			800,
     .yres =			600,
     .xres_virtual =		800,
-    .yres_virtual =		600,
+    .yres_virtual =		1800,
     .pixclock =		25000,
     .left_margin =		88,
     .right_margin =		40,

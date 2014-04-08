@@ -194,7 +194,7 @@ static unsigned long fb_addr                __initdata = 0x100000000;
 static char* module_options                 __initdata = NULL;
 static struct fb_var_screeninfo default_var __initdata;
 static unsigned int fb_hard                            = 0;                     // fb_hard means: 0, from __get_free_pages. 1, ioremap. 2, no allocation (see thinklcdml_setfbmem)
-static unsigned long virtual_regs_base = 0, color_mode = TLCD_MODE_RGBA8888;    // color_mode -> 0
+static unsigned long virtual_regs_base = 0, color_mode = TLCD_MODE_ARGB8888;    // color_mode -> 0
 
 #ifdef USE_PLL
 static unsigned long pixclkpll_v_regs_base = 0;
