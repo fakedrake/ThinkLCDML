@@ -200,9 +200,6 @@ static unsigned long virtual_regs_base = 0, color_mode = TLCD_MODE_ARGB8888;    
 static unsigned long pixclkpll_v_regs_base = 0;
 #endif
 
-bool LCD_Bpp = false;
-int MODE_RES = 0;                                                               // 0 = 640x480 | 1 = 800x600 | 2 = 1024x768
-
 static int thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info);
 static int thinklcdml_set_par(struct fb_info *info);
 static int thinklcdml_setcolreg(u_int regno, u_int red, u_int green, u_int blue, u_int transp, struct fb_info *info);
@@ -376,20 +373,37 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
         break;
 
     case 32:
-        if (var->transp.offset || var->red.offset == 16) {
+        if (var->transp.offset == 24 && var->red.offset == 16 && var->green.offset == 8 && var->blue.offset == 0) {
             /* ARGB 8888 */
             if ( var->transp.length != 0 )
             var->transp = (struct fb_bitfield) { 24, 8, 0 };
             var->red    = (struct fb_bitfield) { 16, 8, 0 };
             var->green  = (struct fb_bitfield) {  8, 8, 0 };
             var->blue   = (struct fb_bitfield) {  0, 8, 0 };
-        } else {
+        }
+        else if (var->transp.offset == 0 && var->red.offset == 24 && var->green.offset == 16 && var->blue.offset == 8) {
             /* RGBA 8888 */
             var->red    = (struct fb_bitfield) { 24, 8, 0 };
             var->green  = (struct fb_bitfield) { 16, 8, 0 };
             var->blue   = (struct fb_bitfield) {  8, 8, 0 };
             if ( var->transp.length != 0 )
+                var->transp = (struct fb_bitfield) {  0, 8, 0 };
+        }
+        else if (var->transp.offset == 24 && var->red.offset == 0 && var->green.offset == 8 && var->blue.offset == 16) {
+            /* ABGR 8888*/
+            if ( var->transp.length != 0 )
+            var->transp = (struct fb_bitfield) { 24, 8, 0 };
+            var->red    = (struct fb_bitfield) {  0, 8, 0 };
+            var->green  = (struct fb_bitfield) {  8, 8, 0 };
+            var->blue   = (struct fb_bitfield) { 16, 8, 0 };
+        }
+        else if (var->transp.offset == 0 && var->red.offset == 8 && var->green.offset == 16 && var->blue.offset == 24) {
+            /* BGRA 8888*/
+            if ( var->transp.length != 0 )
             var->transp = (struct fb_bitfield) {  0, 8, 0 };
+            var->red    = (struct fb_bitfield) {  8, 8, 0 };
+            var->green  = (struct fb_bitfield) { 16, 8, 0 };
+            var->blue   = (struct fb_bitfield) { 24, 8, 0 };
         }
 
         break;
@@ -468,16 +482,24 @@ thinklcdml_set_par(struct fb_info *info)
         info->fix.visual = FB_VISUAL_TRUECOLOR;
         mask &= ~(1<<20);
 
-        if (      info->var.red.offset == 16 && info->var.green.offset == 8  && info->var.blue.offset == 0  )
+        if (      info->var.red.offset == 16 && info->var.green.offset == 8  && info->var.blue.offset == 0  ) {
             mode = TLCD_MODE_ARGB8888;
-        else if ( info->var.red.offset == 0  && info->var.green.offset == 8  && info->var.blue.offset == 16 )
+            printk("Switching to ARGB8888\n");
+        }
+        else if ( info->var.red.offset == 0  && info->var.green.offset == 8  && info->var.blue.offset == 16 ) {
             mode = TLCD_MODE_ABGR8888;
-        else if ( info->var.red.offset == 24 && info->var.green.offset == 16 && info->var.blue.offset == 8  )
+            printk("Switching to ABGR8888\n");
+        }
+        else if ( info->var.red.offset == 24 && info->var.green.offset == 16 && info->var.blue.offset == 8  ) {
             mode = TLCD_MODE_RGBA8888;
-        else if ( info->var.red.offset == 8  && info->var.green.offset == 16 && info->var.blue.offset == 24 )
+            printk("Switching to RGBA8888\n");
+        }
+        else if ( info->var.red.offset == 8  && info->var.green.offset == 16 && info->var.blue.offset == 24 ) {
             mode = TLCD_MODE_BGRA8888;
+            printk("Switching to BGRA8888\n");
+        }
         else {
-            PRINT_W("Unsupported mode: R:%d, G:%d, B:%d, A:%d. Switching to RGBA8888\n", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
+            printk("Unsupported mode: R:%d, G:%d, B:%d, A:%d. Switching to RGBA8888\n", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
             mode = TLCD_MODE_RGBA8888;
         }
 
@@ -736,13 +758,6 @@ thinklcdml_setup(char *options, char* separator)
             case 7: default_var.vsync_len    = simple_strtoul(this_opt, NULL, 0); break;
             case 8: default_var.upper_margin = simple_strtoul(this_opt, NULL, 0); break;
             case 9:
-                if(!strcmp(this_opt, "RGB32")) {
-                    LCD_Bpp = true;
-                    //printk(KERN_INFO    "filippakoc 32 ------> !!!!!");
-                } else if(!strcmp(this_opt, "RGB16") || !strcmp(this_opt, "RGBA5551")) {
-                    LCD_Bpp = false;
-                    //printk(KERN_INFO    "filippakoc 16 ------> !!!!!");
-                }
                 if (!strcmp(this_opt, "LUT8")) {
                     default_var.bits_per_pixel = 8, default_var.red.offset = 0;
                     color_mode = TLCD_MODE_LUT8;
@@ -757,19 +772,19 @@ thinklcdml_setup(char *options, char* separator)
                     default_var.transp.length = 1;
                     default_var.transp.offset = 0;
                     color_mode = TLCD_MODE_RGBA5551;
-//                    printk(KERN_INFO    "!!!!!");
+
                 } else if (!strcmp(this_opt, "RGB32")) {
-                    /*default_var.bits_per_pixel = 32;
-                    default_var.red.offset = 24;
-                    default_var.red.length = 8;
-                    default_var.green.offset = 16;
-                    default_var.green.length = 8;
-                    default_var.blue.offset = 8;
-                    default_var.blue.length = 8;
-                    default_var.transp.length = 8;
-                    default_var.transp.offset = 0;
-                    color_mode = TLCD_MODE_RGBA8888;
-                      printk(KERN_INFO    "!!!!!");*/
+//                    default_var.bits_per_pixel = 32;
+//                    default_var.red.offset = 24;
+//                    default_var.red.length = 8;
+//                    default_var.green.offset = 16;
+//                    default_var.green.length = 8;
+//                    default_var.blue.offset = 8;
+//                    default_var.blue.length = 8;
+//                    default_var.transp.length = 8;
+//                    default_var.transp.offset = 0;
+//                    color_mode = TLCD_MODE_RGBA8888;
+
                     default_var.bits_per_pixel = 32;
                     default_var.red.offset = 16;
                     default_var.red.length = 8;
@@ -780,7 +795,6 @@ thinklcdml_setup(char *options, char* separator)
                     default_var.transp.length = 24;
                     default_var.transp.offset = 0;
                     color_mode = TLCD_MODE_ARGB8888;
-//                    printk(KERN_INFO    "!!!!!");
                 } else if (!strcmp(this_opt, "TEST")) {
                     PRINT_W("Warning: Test mode enabled, any mode change will silently fail!\n");
                     color_mode = TLCD_MODE_TEST;
@@ -794,7 +808,6 @@ thinklcdml_setup(char *options, char* separator)
                     default_var.blue.offset = 0;
                     default_var.blue.length = 2;
                     color_mode = TLCD_MODE_RGB332;
-//                    printk(KERN_INFO    "!!!!!");
                 } else if (!strcmp(this_opt, "RGBA565")) {
                     default_var.bits_per_pixel = 16;
                     default_var.red.offset = 11;
@@ -804,7 +817,6 @@ thinklcdml_setup(char *options, char* separator)
                     default_var.blue.offset = 0;
                     default_var.blue.length = 5;
                     color_mode = TLCD_MODE_RGBA565;
-//                    printk(KERN_INFO    "!!!!!");
                 } else if (!strcmp(this_opt, "ARGB8888")) {
                     default_var.bits_per_pixel = 32;
                     default_var.red.offset = 16;
@@ -814,7 +826,6 @@ thinklcdml_setup(char *options, char* separator)
                     default_var.blue.offset = 0;
                     default_var.blue.length = 8;
                     color_mode = TLCD_MODE_ARGB8888;
-//                    printk(KERN_INFO    "!!!!!");
                 } else if (!strcmp(this_opt, "L8"))
                     default_var.bits_per_pixel = 8, default_var.grayscale = 1, color_mode = TLCD_MODE_L8;
                 else {
@@ -828,20 +839,16 @@ thinklcdml_setup(char *options, char* separator)
             }
         } else if (!strcmp(this_opt, "1024x768")) {
             default_var = m1024x768;
-            MODE_RES = 2;
             custom = 1;
             count = 9;
         } else if (!strcmp(this_opt, "800x600")) {
             default_var = m800x600;
-            MODE_RES = 1;
             custom = 1;
             count = 9;
         } else if (!strcmp(this_opt, "640x480")) {
             default_var = m640x480;
-            MODE_RES = 0;
             custom = 1;
             count = 9;
-//            printk(KERN_INFO    "!!640x480!!!");
         } else if (!strcmp(this_opt, "800x480")) {
             default_var = m800x480;
             custom = 1;
