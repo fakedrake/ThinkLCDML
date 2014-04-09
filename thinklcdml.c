@@ -190,7 +190,7 @@ struct tlcdml_fb_data {
 
 static unsigned int fb_memsize              __initdata = 800*600*4*8;
 static unsigned long physical_register_base __initdata = TLCD_PHYSICAL_BASE;
-static unsigned long fb_addr                __initdata = 0x100000000;
+static unsigned long fb_addr;//                __initdata = 0x100000000;
 static char* module_options                 __initdata = NULL;
 static struct fb_var_screeninfo default_var __initdata;
 static unsigned int fb_hard                            = 0;                     // fb_hard means: 0, from __get_free_pages. 1, ioremap. 2, no allocation (see thinklcdml_setfbmem)
@@ -282,6 +282,12 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 
     PRINT_PROC_ENTRY;
 
+    PRINT_D("Res: %dx%d\n", info->var.xres, info->var.yres);
+    PRINT_D("Margins: L:%d, R:%d, U:%d, D:%d\n", info->var.left_margin, info->var.right_margin, info->var.upper_margin, info->var.lower_margin);
+    PRINT_D("bpp: %d\n", info->var.bits_per_pixel);
+    PRINT_D("offsets: R:%d, G:%d, B:%d, A:%d\n", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
+    PRINT_D("PixClock: %d\n", info->var.pixclock);
+
     /*  FB_VMODE_CONUPDATE and FB_VMODE_SMOOTH_XPAN are equal!
      *  as FB_VMODE_SMOOTH_XPAN is only used internally */
     if (var->vmode & FB_VMODE_CONUPDATE) {
@@ -351,18 +357,21 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
         break;
 
     case 16:
-        if (var->transp.length == 4) {
-            /* RGB 4444 */
-            var->red    = (struct fb_bitfield) { 12, 4, 0 };
-            var->green  = (struct fb_bitfield) {  8, 4, 0 };
-            var->blue   = (struct fb_bitfield) {  4, 4, 0 };
-            var->transp = (struct fb_bitfield) {  0, 4, 0 };
-        } else {
+        if (var->transp.length == 1 && var->red.offset == 11 && var->green.offset == 6 && var->blue.offset == 1) {
             /* RGBA 5551 */
             var->red    = (struct fb_bitfield) { 11, 5, 0 };
             var->green  = (struct fb_bitfield) {  6, 5, 0 };
             var->blue   = (struct fb_bitfield) {  1, 5, 0 };
             var->transp = (struct fb_bitfield) {  0, 1, 0 };
+        } else if (var->transp.length == 0 && var->red.offset == 11 && var->green.offset == 5 && var->blue.offset == 0) {
+            /* RGB 565 */
+            var->red    = (struct fb_bitfield) { 11, 5, 0 };
+            var->green  = (struct fb_bitfield) {  5, 6, 0 };
+            var->blue   = (struct fb_bitfield) {  0, 5, 0 };
+            var->transp = (struct fb_bitfield) {  0, 0, 0 };
+        } else {
+            PRINT_W("Color mode not supported\n");
+            return -EINVAL;
         }
         break;
 
@@ -396,8 +405,14 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 static int
 thinklcdml_set_par(struct fb_info *info)
 {
+    struct thinklcdml_par *par;
+    int resx, resy, frontporchx, frontporchy, blankx, blanky, backporchx, backporchy;
+    u32 mode, mode_layer, i, mask = 0xffffffff;
+    u8 red, green, blue;
+
     PRINT_PROC_ENTRY;
-    struct thinklcdml_par *par = info->par;
+
+    par = info->par;
 
     PRINT_D("Res: %dx%d\n", info->var.xres, info->var.yres);
     PRINT_D("Margins: L:%d, R:%d, U:%d, D:%d\n", info->var.left_margin, info->var.right_margin, info->var.upper_margin, info->var.lower_margin);
@@ -405,17 +420,14 @@ thinklcdml_set_par(struct fb_info *info)
     PRINT_D("offsets: R:%d, G:%d, B:%d, A:%d\n", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
     PRINT_D("PixClock: %d\n", info->var.pixclock);
 
-    int resx        = info->var.xres;
-    int resy        = info->var.yres;
-    int frontporchx = resx +info->var.right_margin;
-    int frontporchy = resy +info->var.lower_margin;
-    int blankx      = frontporchx+ info->var.hsync_len;
-    int blanky      = frontporchy+ info->var.vsync_len;
-    int backporchx  = blankx + info->var.left_margin;
-    int backporchy  = blanky + info->var.upper_margin;
-
-    u32 mode, mode_layer, i, mask = 0xffffffff;
-    u8 red, green, blue;
+    resx        = info->var.xres;
+    resy        = info->var.yres;
+    frontporchx = resx +info->var.right_margin;
+    frontporchy = resy +info->var.lower_margin;
+    blankx      = frontporchx+ info->var.hsync_len;
+    blanky      = frontporchy+ info->var.vsync_len;
+    backporchx  = blankx + info->var.left_margin;
+    backporchy  = blanky + info->var.upper_margin;
 
     PRINT_D("right_margin = %d", info->var.right_margin);
     PRINT_D("lower_margin = %d", info->var.lower_margin);
@@ -449,7 +461,7 @@ thinklcdml_set_par(struct fb_info *info)
     case 16:
         info->fix.visual = FB_VISUAL_TRUECOLOR;
         mask &= ~(1<<20);  /* Make sure there is no look up table. */
-        mode = info->var.transp.length == 1 ? TLCD_MODE_RGBA5551 : TLCD_MODE_RGBA4444;
+        mode = info->var.transp.length == 1 ? TLCD_MODE_RGBA5551 : TLCD_MODE_RGBA565;
 
         break;
     case 32:
@@ -783,7 +795,7 @@ thinklcdml_setup(char *options, char* separator)
                     default_var.blue.length = 2;
                     color_mode = TLCD_MODE_RGB332;
 //                    printk(KERN_INFO    "!!!!!");
-                } else if (!strcmp(this_opt, "RGBA4444")) {
+                } else if (!strcmp(this_opt, "RGBA565")) {
                     default_var.bits_per_pixel = 16;
                     default_var.red.offset = 11;
                     default_var.red.length = 5;
@@ -791,7 +803,7 @@ thinklcdml_setup(char *options, char* separator)
                     default_var.green.length = 6;
                     default_var.blue.offset = 0;
                     default_var.blue.length = 5;
-                    color_mode = TLCD_MODE_RGBA4444;
+                    color_mode = TLCD_MODE_RGBA565;
 //                    printk(KERN_INFO    "!!!!!");
                 } else if (!strcmp(this_opt, "ARGB8888")) {
                     default_var.bits_per_pixel = 32;
@@ -1179,12 +1191,12 @@ thinklcdml_probe(struct platform_device *device)
              * doing something fancy. */
 #ifdef USE_CMA
             thinklcdml_alloc_layer(alloc_layers, fb_memsize);
-            virtual_start[alloc_layers] = alloc[alloc_layers].virt;
+            virtual_start[alloc_layers] = (unsigned long)alloc[alloc_layers].virt;
 #else
             virtual_start[alloc_layers] = (unsigned long) __get_free_pages(GFP_DMA | GFP_KERNEL, get_order(fb_memsize));
 #endif
             if (!virtual_start[alloc_layers]) {
-                PRINT_E("Unable to allocate framebuffer:%u memory \n", alloc_layers, fb_memsize);
+                PRINT_E("Unable to allocate framebuffer: layers: %d, %u memory \n", alloc_layers, fb_memsize);
                 if (!alloc_layers) {
                     retval = -ENOMEM;
                     goto err_fb_mem_alloc;
@@ -1414,6 +1426,10 @@ int __init
 thinklcdml_init(void)
 {
     int ret;
+#ifdef USE_CMA
+    int i;
+#endif
+
 #ifndef MODULE
     char *options = NULL, *separator = ",";
 #else
@@ -1424,7 +1440,6 @@ thinklcdml_init(void)
     printk("ThinkLCDML Multilayer kernel driver\n");
 
 #ifdef USE_CMA
-    int i;
     for ( i = 0; i < TLCDML_LAYERS_NUMBER; ++i) {
         alloc[i].virt = NULL;
         alloc[i].size = 0;
