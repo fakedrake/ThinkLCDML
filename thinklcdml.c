@@ -322,6 +322,13 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
         return -EINVAL;
     }
 
+#ifdef USE_ONLY_800x600
+    if ( var->xres != 800 || var->yres != 600 ) {
+//        PRINT_E("Not suppored resolution!\n");
+        return -EINVAL;
+    }
+#endif
+
     /* Virtual resolution setup. */
     if (var->xres_virtual < var->xoffset + var->xres)
         var->xres_virtual = var->xoffset + var->xres;

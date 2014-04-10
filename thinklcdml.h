@@ -4,6 +4,8 @@
 #define TLCDML_LAYERS_NUMBER    1
 #define BUFFERS_PER_LAYER       3
 
+#define USE_ONLY_800x600
+
 #define ZC702
 
 #define USE_CMA
