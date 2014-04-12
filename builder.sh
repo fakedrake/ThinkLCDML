@@ -1,6 +1,10 @@
 #!/bin/bash
-# export PATH=$PATH:/home/filippakoc/Projects/xilinx-zynq-bootstrap-master/GNU_Tools/bin
-make ARCH=arm CROSS_COMPILE=arm-xilinx-linux-gnueabi-
 
+if [ $# == 0 ]; then
+	make
+elif [ $# == 1 ]; then
+	make LINUX_HEADERS=$1
+else
+	make LINUX_HEADERS=$1 CROSS_COMPILE_PREFIX=$2
+fi
 
-#cp thinklcdml.ko /homes/zynqfs
