@@ -905,7 +905,7 @@ thinklcdml_vsync(struct fb_info *info)
     count = par->vblank_count;
 
     //PRINT_E ("Writing: 0x%08lx, 0x%08x, 8", par->regs, TLCD_REG_INTERRUPT);
-    think_writel(par->regs, TLCD_REG_INTERRUPT, 4);
+    think_writel(par->regs, TLCD_REG_INTERRUPT, 0x1);
     /* wait for it for a while */
     if (!wait_event_interruptible_timeout(par->wait_vsync, count != par->vblank_count, HZ / 10)) {
         return -ETIMEDOUT;
