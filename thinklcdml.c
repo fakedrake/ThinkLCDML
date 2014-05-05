@@ -380,7 +380,7 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
         break;
 
     case 32:
-        if (var->transp.offset == 24 && var->red.offset == 16 && var->green.offset == 8 && var->blue.offset == 0) {
+        if (     /*var->transp.offset == 24 && */ var->red.offset == 16 && var->green.offset == 8 && var->blue.offset == 0) {
             /* ARGB 8888 */
             if ( var->transp.length != 0 )
             var->transp = (struct fb_bitfield) { 24, 8, 0 };
