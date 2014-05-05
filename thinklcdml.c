@@ -88,6 +88,7 @@ MODULE_LICENSE("GPL");
 #   define PRINT_D(args...)	do { } while(0)
 #endif
 
+
 #if defined(TLCD_DEBUG_PROCENTRY) || defined(TLCD_DEBUG)
 #   define PRINT_PROC_ENTRY	do { printk(KERN_ERR "ThinkLCDML: calling: %s()\n", __FUNCTION__); } while (0)
 #else
@@ -210,6 +211,10 @@ static int thinklcdml_vsync(struct fb_info *info);
 static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg);
 static irqreturn_t thinklcdml_vsync_interrupt(int irq, void *ptr);
 struct platform_device lcd_device;
+
+static int              activate_vbl = 0;
+static unsigned         activate_vbl_layer_baseaddr;
+static unsigned long    activate_vbl_address;
 
 /**
 Debug info of registers.
@@ -646,6 +651,7 @@ thinklcdml_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 {
     struct thinklcdml_par *par = info->par;
     unsigned long address;
+    int ret = 0;
 
     PRINT_PROC_ENTRY;
     PRINT_D("mode:%u xoffset:%u yoffset:%u", var->vmode, var->xoffset, var->yoffset);
@@ -672,9 +678,20 @@ thinklcdml_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
     /* compute new base address */
     address = info->fix.smem_start + var->yoffset * info->fix.line_length + var->xoffset * (var->bits_per_pixel >> 3);
 
-    think_writel(par->regs, TLCD_REG_LAYER_BASEADDR(OL(info)), address);
 
-    return 0;
+    if ( var->activate == FB_ACTIVATE_VBL ) {
+        // activate on next vbl
+        activate_vbl_layer_baseaddr = TLCD_REG_LAYER_BASEADDR(OL(info));
+        activate_vbl_address = address;
+        activate_vbl = 1;
+        // enable interrupts for next vsync
+        think_writel(par->regs, TLCD_REG_INTERRUPT, 0x1);
+    }
+    else {
+        think_writel(par->regs, TLCD_REG_LAYER_BASEADDR(OL(info)), address);
+    }
+
+    return ret;
 }
 
 static int
@@ -886,6 +903,11 @@ thinklcdml_vsync_interrupt(int irq, void *ptr)
 
     /* update stats, also needed as a condition to unblock */
     par->vblank_count++;
+
+    if ( activate_vbl == 1 ) {
+        think_writel(virtual_regs_base, activate_vbl_layer_baseaddr, activate_vbl_address);
+        activate_vbl = 0;
+    }
 
     /* wake up any threads waiting */
     wake_up_interruptible(&par->wait_vsync);
