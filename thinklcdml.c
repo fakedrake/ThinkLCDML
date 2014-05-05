@@ -388,15 +388,7 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
             var->green  = (struct fb_bitfield) {  8, 8, 0 };
             var->blue   = (struct fb_bitfield) {  0, 8, 0 };
         }
-        else if (var->transp.offset == 0 && var->red.offset == 24 && var->green.offset == 16 && var->blue.offset == 8) {
-            /* RGBA 8888 */
-            var->red    = (struct fb_bitfield) { 24, 8, 0 };
-            var->green  = (struct fb_bitfield) { 16, 8, 0 };
-            var->blue   = (struct fb_bitfield) {  8, 8, 0 };
-            if ( var->transp.length != 0 )
-                var->transp = (struct fb_bitfield) {  0, 8, 0 };
-        }
-        else if (var->transp.offset == 24 && var->red.offset == 0 && var->green.offset == 8 && var->blue.offset == 16) {
+        else if (/*var->transp.offset == 24 && */ var->red.offset == 0 && var->green.offset == 8 && var->blue.offset == 16) {
             /* ABGR 8888*/
             if ( var->transp.length != 0 )
             var->transp = (struct fb_bitfield) { 24, 8, 0 };
@@ -404,13 +396,24 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
             var->green  = (struct fb_bitfield) {  8, 8, 0 };
             var->blue   = (struct fb_bitfield) { 16, 8, 0 };
         }
-        else if (var->transp.offset == 0 && var->red.offset == 8 && var->green.offset == 16 && var->blue.offset == 24) {
+        else if (/*var->transp.offset == 0 && */ var->red.offset == 8 && var->green.offset == 16 && var->blue.offset == 24) {
             /* BGRA 8888*/
             if ( var->transp.length != 0 )
             var->transp = (struct fb_bitfield) {  0, 8, 0 };
             var->red    = (struct fb_bitfield) {  8, 8, 0 };
             var->green  = (struct fb_bitfield) { 16, 8, 0 };
             var->blue   = (struct fb_bitfield) { 24, 8, 0 };
+        }
+        else if (/*var->transp.offset == 0 && */ var->red.offset == 24 && var->green.offset == 16 && var->blue.offset == 8) {
+            /* RGBA 8888 */
+            var->red    = (struct fb_bitfield) { 24, 8, 0 };
+            var->green  = (struct fb_bitfield) { 16, 8, 0 };
+            var->blue   = (struct fb_bitfield) {  8, 8, 0 };
+            if ( var->transp.length != 0 )
+                var->transp = (struct fb_bitfield) {  0, 8, 0 };
+        } else {
+            PRINT_W("Color mode not supported\n");
+//            return -EINVAL;
         }
 
         break;
