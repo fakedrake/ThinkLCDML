@@ -189,7 +189,12 @@ struct tlcdml_fb_data {
     struct fb_info* infos[TLCDML_LAYERS_NUMBER];
 };
 
-static unsigned int fb_memsize              __initdata = 800*600*4*8;
+#ifdef LARGE_MEM
+static unsigned int fb_memsize                         = 60*1024*1024;
+#else
+static unsigned int fb_memsize                         = 800*600*4*8;
+#endif
+
 static unsigned long physical_register_base __initdata = TLCD_PHYSICAL_BASE;
 static unsigned long fb_addr;//                __initdata = 0x100000000;
 static char* module_options                 __initdata = NULL;
@@ -684,13 +689,19 @@ thinklcdml_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
         activate_vbl_layer_baseaddr = TLCD_REG_LAYER_BASEADDR(OL(info));
         activate_vbl_address = address;
 
-//        if (activate_vbl == 1) {
-//            thinklcdml_vsync(info);
-//        }
-
-        activate_vbl = 1;
-        // enable interrupts for next vsync
-        think_writel(par->regs, TLCD_REG_INTERRUPT, 0x1);
+        if (activate_vbl != 1) {
+            activate_vbl = 1;
+            // enable interrupts for next vsync
+            think_writel(par->regs, TLCD_REG_INTERRUPT, 0x1);
+        }
+#ifdef SYNC_ON_HIFPS
+        else {
+            // Very High FPS - Normally, the two back buffers should be swapped
+            // but this function is not supported by fbdev... so just wait for vsync
+//            printk("TooFast\n");
+            thinklcdml_vsync(info);
+        }
+#endif
     }
     else {
         think_writel(par->regs, TLCD_REG_LAYER_BASEADDR(OL(info)), address);

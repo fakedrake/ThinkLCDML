@@ -7,6 +7,11 @@
 #define USE_ONLY_800x600
 
 #define ZC702
+// Use this with DirectFB
+#define LARGE_MEM
+
+// When (var->activate == FB_ACTIVATE_VBL) and FPS are high wait for vsync
+#define SYNC_ON_HIFPS
 
 #define USE_CMA
 
