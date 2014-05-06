@@ -683,6 +683,11 @@ thinklcdml_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
         // activate on next vbl
         activate_vbl_layer_baseaddr = TLCD_REG_LAYER_BASEADDR(OL(info));
         activate_vbl_address = address;
+
+//        if (activate_vbl == 1) {
+//            thinklcdml_vsync(info);
+//        }
+
         activate_vbl = 1;
         // enable interrupts for next vsync
         think_writel(par->regs, TLCD_REG_INTERRUPT, 0x1);
