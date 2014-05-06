@@ -1,0 +1,8 @@
+modules\.order
+Module\.symvers
+thinklcdml\.ko
+thinklcdml\.mod\.c
+thinklcdml\.mod\.o
+\.thinklcdml\.ko\.cmd
+\.thinklcdml.mod\.o\.cmd
+\.thinklcdml\.o\.cmd
