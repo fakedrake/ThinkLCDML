@@ -780,6 +780,18 @@ thinklcdml_setup(char *options, char* separator)
     PRINT_PROC_ENTRY;
 
     if (!options || !*options) {
+        default_var = m800x600;
+        default_var.bits_per_pixel = 32;
+        default_var.red.offset = 16;
+        default_var.red.length = 8;
+        default_var.green.offset = 8;
+        default_var.green.length = 8;
+        default_var.blue.offset = 0;
+        default_var.blue.length = 8;
+        default_var.transp.length = 24;
+        default_var.transp.offset = 0;
+        color_mode = TLCD_MODE_ARGB8888;
+
         /* Default to low resolution, Add video=thinklcdml:... to kernel command line */
         PRINT_I("No user setup options: Defaulting to %dx%d, bpp: %d, color mode: 0x%lx\n", default_var.xres, default_var.yres, default_var.bits_per_pixel, color_mode);
         return 1;
