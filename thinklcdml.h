@@ -4,9 +4,11 @@
 #define TLCDML_LAYERS_NUMBER    1
 #define BUFFERS_PER_LAYER       3
 
-#define USE_ONLY_800x600
+#define USE_ONLY_DEFAULT_FBCONF
 
+#define DEFAULT_FBCONF     m800x600_60
 #define ZC702
+
 // Use this with DirectFB
 #define LARGE_MEM
 
@@ -150,74 +152,74 @@
 #define FBIO_WAITFORVSYNC	_IOW('F', 0x20, __u32)
 #endif
 
-static struct fb_var_screeninfo m640x480 __initdata = {
-    .xres =			640,
-    .yres =			480,
-    .xres_virtual =		640,
-    .yres_virtual =		480,
-    .pixclock = 		39682,
-    .left_margin =		48,
-    .right_margin =		16,
-    .upper_margin =		33,
-    .lower_margin =		10,
-    .hsync_len =		96,
-    .vsync_len =		2,
+static struct fb_var_screeninfo m640x480_60 = {
+    .xres           = 640,
+    .yres           = 480,
+    .xres_virtual   = 640,
+    .yres_virtual   = 480,
+    .pixclock       = 39722,    // 25.175 MHz
+    .left_margin    = 48,
+    .right_margin   = 16,
+    .upper_margin   = 33,
+    .lower_margin   = 10,
+    .hsync_len      = 96,
+    .vsync_len      = 2,
 };
 
-/*static struct fb_var_screeninfo m1024x600 __initdata = {
-    .xres =			1024,
-    .yres =			600,
-    .xres_virtual =		1024,
-    .yres_virtual =		600,
-    .pixclock = 		43750,
-    .left_margin =		80,
-    .right_margin =		48,
-    .upper_margin =		6,
-    .lower_margin =		3,
-    .hsync_len =		32,
-    .vsync_len =		10,
-};*/
-
-static struct fb_var_screeninfo m800x480 __initdata = {
-    .xres =			800,
-    .yres =			480,
-    .xres_virtual =		800,
-    .yres_virtual =		480,
-    .pixclock = 		71420,
-    .left_margin =		216,
-    .right_margin =		16,
-    .upper_margin =		35,
-    .lower_margin =		10,
-    .hsync_len =		48,
-    .vsync_len =		3,
+static struct fb_var_screeninfo m800x480_60 = {
+    .xres           = 800,
+    .yres           = 480,
+    .xres_virtual   = 800,
+    .yres_virtual   = 480,
+    .pixclock       = 31250,    // 32 MHz
+    .left_margin    = 86,
+    .right_margin   = 42,
+    .upper_margin   = 33,
+    .lower_margin   = 10,
+    .hsync_len      = 128,
+    .vsync_len      = 2,
 };
 
-static struct fb_var_screeninfo m800x600 __initdata = {
-    .xres =			800,
-    .yres =			600,
-    .xres_virtual =		800,
-    .yres_virtual =		600,
-    .pixclock =		25000,
-    .left_margin =		88,
-    .right_margin =		40,
-    .upper_margin =		23,
-    .lower_margin =		1,
-    .hsync_len =		128,
-    .vsync_len =		4,
+static struct fb_var_screeninfo m800x600_60 = {
+    .xres           = 800,
+    .yres           = 600,
+    .xres_virtual   = 800,
+    .yres_virtual   = 600,
+    .pixclock       = 25000,    // 40 MHz
+    .left_margin    = 88,
+    .right_margin   = 40,
+    .upper_margin   = 23,
+    .lower_margin   = 1,
+    .hsync_len      = 128,
+    .vsync_len      = 4,
 };
 
-static struct fb_var_screeninfo m1024x768 __initdata = {
-    .xres =			1024,
-    .yres =			768,
-    .xres_virtual =		1024,
-    .yres_virtual =		768,
-    .pixclock =		        48363,
-    .left_margin =		160,
-    .right_margin =		24,
-    .upper_margin =		29,
-    .lower_margin =		3,
-    .hsync_len =		136,
-    .vsync_len =		6,
+static struct fb_var_screeninfo m1024x600_60 = {
+    .xres           = 1024,
+    .yres           = 600,
+    .xres_virtual   = 1024,
+    .yres_virtual   = 600,
+    .pixclock       = 19743,    // 50.65 MHz
+    .left_margin    = 160,
+    .right_margin   = 24,
+    .upper_margin   = 26,
+    .lower_margin   = 1,
+    .hsync_len      = 136,
+    .vsync_len      = 1,
+};
+
+static struct fb_var_screeninfo m1024x768_60 = {
+    .xres           = 1024,
+    .yres           = 768,
+    .xres_virtual   = 1024,
+    .yres_virtual   = 768,
+    .pixclock       = 15385,    // 65 MHz
+    .left_margin    = 160,
+    .right_margin   = 24,
+    .upper_margin   = 29,
+    .lower_margin   = 3,
+    .hsync_len      = 136,
+    .vsync_len      = 6,
 };
 
 #endif

@@ -295,6 +295,22 @@ thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
     PRINT_D("offsets: R:%d, G:%d, B:%d, A:%d\n", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
     PRINT_D("PixClock: %d\n", info->var.pixclock);
 
+#ifdef USE_ONLY_DEFAULT_FBCONF
+    if ( var->xres != DEFAULT_FBCONF.xres || var->yres != DEFAULT_FBCONF.yres ) {
+//        PRINT_E("Not suppored resolution!\n");
+        return -EINVAL;
+    }
+
+    var->pixclock       = DEFAULT_FBCONF.pixclock;
+    var->left_margin    = DEFAULT_FBCONF.left_margin;
+    var->right_margin   = DEFAULT_FBCONF.right_margin;
+    var->upper_margin   = DEFAULT_FBCONF.upper_margin;
+    var->lower_margin   = DEFAULT_FBCONF.lower_margin;
+    var->hsync_len      = DEFAULT_FBCONF.hsync_len;
+    var->vsync_len      = DEFAULT_FBCONF.vsync_len;
+#endif
+
+
     /*  FB_VMODE_CONUPDATE and FB_VMODE_SMOOTH_XPAN are equal!
      *  as FB_VMODE_SMOOTH_XPAN is only used internally */
     if (var->vmode & FB_VMODE_CONUPDATE) {
@@ -780,7 +796,7 @@ thinklcdml_setup(char *options, char* separator)
     PRINT_PROC_ENTRY;
 
     if (!options || !*options) {
-        default_var = m800x600;
+        default_var = DEFAULT_FBCONF;
         default_var.bits_per_pixel = 32;
         default_var.red.offset = 16;
         default_var.red.length = 8;
@@ -893,19 +909,23 @@ thinklcdml_setup(char *options, char* separator)
             case 11: fb_addr = simple_strtoul(this_opt, NULL, 0); fb_hard = 1; custom = 0; break;
             }
         } else if (!strcmp(this_opt, "1024x768")) {
-            default_var = m1024x768;
+            default_var = m1024x768_60;
             custom = 1;
             count = 9;
         } else if (!strcmp(this_opt, "800x600")) {
-            default_var = m800x600;
+            default_var = m800x600_60;
             custom = 1;
             count = 9;
         } else if (!strcmp(this_opt, "640x480")) {
-            default_var = m640x480;
+            default_var = m640x480_60;
             custom = 1;
             count = 9;
         } else if (!strcmp(this_opt, "800x480")) {
-            default_var = m800x480;
+            default_var = m800x480_60;
+            custom = 1;
+            count = 9;
+        } else if (!strcmp(this_opt, "1024x600")) {
+            default_var = m1024x600_60;
             custom = 1;
             count = 9;
         } else if (!strcmp(this_opt, "custom")) {
@@ -1461,6 +1481,7 @@ thinklcdml_remove(struct platform_device *device)
         framebuffer_release(info);
     }
     drvdata->fb_num = 0;
+
     return 0;
 }
 
@@ -1513,10 +1534,6 @@ thinklcdml_init(void)
     }
 #endif
 
-
-    /* our default mode is 800x480,LUT8 */
-    default_var = m800x600;
-    default_var.bits_per_pixel = 32;
 
 #ifndef MODULE
     /* get options from kernel command line and setup the driver */
