@@ -59,8 +59,6 @@
 #include <linux/dma-mapping.h>
 #endif
 
-MODULE_LICENSE("GPL");
-
 //TODO: Does it work as a module?
 //TODO: Remove platform device code
 //TODO: Add PM facilities?
@@ -68,8 +66,8 @@ MODULE_LICENSE("GPL");
 // Uncomment this to enable polling for vsync
 //#define TLCD_POLL_VSYNC
 
-//#define TLCD_DEBUG
-//#define TLCD_DEBUG_PROCENTRY
+// #define TLCD_DEBUG
+// #define TLCD_DEBUG_PROCENTRY
 
 #define OL(info) (MINOR(info->dev->devt))
 
@@ -77,13 +75,8 @@ MODULE_LICENSE("GPL");
 #define PRINT_I(args...)	printk(KERN_INFO    "ThinkLCDML: " args)
 #define PRINT_W(args...)	printk(KERN_WARNING "ThinkLCDML: " args)
 
-#define TLCDML_DEBUG_LEVEL 3
-#if TLCDML_DEBUG_LEVEL>0
-#   define LVL_DBG(l, ...)     do { if (l <= TLCDML_DEBUG_LEVEL) printk("<1>TLCDML DEBUG(level: " #l "): " __VA_ARGS__); } while(0)
-#endif
-
 #ifdef TLCD_DEBUG
-#   define PRINT_D(fmt, args...)	do { printk(KERN_ERR "ThinkLCDML: " fmt "\n", ##args); } while (0)
+#   define PRINT_D(fmt, args...) printk(KERN_ERR "ThinkLCDML: " fmt "\n", ##args)
 #else
 #   define PRINT_D(args...)	do { } while(0)
 #endif
@@ -151,7 +144,7 @@ static int thinklcdml_alloc_layer( int layer, size_t size ) {
        &alloc[layer].dma, GFP_KERNEL);
 
     if (alloc[layer].virt) {
-        PRINT_D("Layer %d: virt: %p dma: %p size: %zuK\n", layer, alloc[layer].virt, (void *)alloc[layer].dma, alloc[layer].size / SZ_1K);
+        PRINT_D("Layer %d: virt: 0x%p dma: 0x%p size: %zuK\n", layer, alloc[layer].virt, (void *)alloc[layer].dma, alloc[layer].size / SZ_1K);
         return 0;
     } else {
         PRINT_E("no mem in CMA area\n");
@@ -165,7 +158,7 @@ static int thinklcdml_alloc_layer( int layer, size_t size ) {
 #endif
 
 struct thinklcdml_par {
-    unsigned long regs;
+    void * __iomem regs;
 
     u32 pseudo_palette[TLCD_PALETTE_COLORS];
     u32 mode;
@@ -195,12 +188,13 @@ static unsigned int fb_memsize                         = 60*1024*1024;
 static unsigned int fb_memsize                         = 800*600*4*8;
 #endif
 
-static unsigned long physical_register_base __initdata = TLCD_PHYSICAL_BASE;
+static unsigned long physical_register_base = TLCD_PHYSICAL_BASE;
 static unsigned long fb_addr;//                __initdata = 0x100000000;
-static char* module_options                 __initdata = NULL;
-static struct fb_var_screeninfo default_var __initdata;
+static char* module_options = NULL;
+static struct fb_var_screeninfo default_var;
 static unsigned int fb_hard                            = 0;                     // fb_hard means: 0, from __get_free_pages. 1, ioremap. 2, no allocation (see thinklcdml_setfbmem)
-static unsigned long virtual_regs_base = 0, color_mode = TLCD_MODE_ARGB8888;    // color_mode -> 0
+static void* __iomem virtual_regs_base = NULL;
+static unsigned long color_mode = TLCD_MODE_ARGB8888;    // color_mode -> 0
 
 #ifdef USE_PLL
 static unsigned long pixclkpll_v_regs_base = 0;
@@ -935,6 +929,7 @@ thinklcdml_setup(char *options, char* separator)
             PRINT_W("Unknown mode '%s', defaulting to 1024x768 16-bit palette mode\n", this_opt);
             return 1;
         }
+
     }
 
     return 1;
@@ -1217,8 +1212,7 @@ err_fb_alloc:
     return retval;
 }
 
-static int __init
-thinklcdml_probe(struct platform_device *device)
+static int thinklcdml_probe(struct platform_device *device)
 {
     int retval = -ENOMEM;
     unsigned long virtual_start[TLCDML_LAYERS_NUMBER];
@@ -1316,12 +1310,12 @@ thinklcdml_probe(struct platform_device *device)
     }
 
     PRINT_D("Performing ioremap for registers (physical base: 0x%08lx, len: 0x%08x).", physical_register_base, TLCD_MMIOALLOC);
-    virtual_regs_base = (unsigned long)ioremap_nocache(physical_register_base, TLCD_MMIOALLOC);
+    virtual_regs_base = ioremap_nocache(physical_register_base, TLCD_MMIOALLOC);
     if (!virtual_regs_base) {
         PRINT_E("MMIO remap for register file failed\n");
         goto err_reg_mem_request;
     } else
-        PRINT_I("MMIO for register file PA:0x%08lx -> VA:0x%08lx len:%u\n", physical_register_base, virtual_regs_base, TLCD_MMIOALLOC);
+        PRINT_I("MMIO for register file PA:0x%08lx -> VA:0x%p len:%u\n", physical_register_base, virtual_regs_base, TLCD_MMIOALLOC);
 
     PRINT_D("Setting default modeL 0x%08x", TLCD_MODE);
     think_writel(virtual_regs_base, TLCD_REG_MODE, TLCD_MODE);
@@ -1334,7 +1328,7 @@ thinklcdml_probe(struct platform_device *device)
             goto err_reg_map;
         }
     }
-    PRINT_I("Registered %d framebuffer devices.\n", i+1);
+    PRINT_I("Registered %d framebuffer devices!\n", i);
 
     /* initialize the wait object for interrupt */
     init_waitqueue_head(&((struct  thinklcdml_par*)drvdata->infos[0]->par)->wait_vsync);
@@ -1409,14 +1403,15 @@ err_irq_setup:
     free_irq(TLCD_VSYNC_IRQ, drvdata->infos[0]->par);
 
 err_reg_map:
+    PRINT_D("Unmapping virtual regsbase.");
     iounmap((void *)virtual_regs_base);
 
 err_reg_mem_request:
+    PRINT_D("Releasing registers due to error in probe.");
     release_mem_region(physical_register_base, TLCD_MMIOALLOC);
 
 err_fb_mem_alloc:
-    release_mem_region(physical_start[0], fb_memsize);
-
+    PRINT_D("Releasing physical due to error in probe.");
     if (fb_hard) {
         for (i=0; i<alloc_layers; i++) {
             iounmap((void *)physical_start[i]);
@@ -1446,18 +1441,21 @@ thinklcdml_remove(struct platform_device *device)
     PRINT_PROC_ENTRY;
 
     /* release the interrupt */
+    PRINT_D("Disabling interrupts...");
     think_writel(par->regs, TLCD_REG_INTERRUPT, 0);
 
     PRINT_D("Freeing irq...");
     free_irq(TLCD_VSYNC_IRQ, par);
 
     PRINT_D("Unmapping register file...");
-    iounmap((void *)virtual_regs_base);
+    iounmap(virtual_regs_base);
 
-    PRINT_D("Releasing register file.");
+    PRINT_D("Releasing register file (at: 0x%08lx, size: 0x%08x).", physical_register_base, TLCD_MMIOALLOC);
     release_mem_region(physical_register_base, TLCD_MMIOALLOC);
 
     for (i = 0; i<drvdata->fb_num; i++) {
+	PRINT_D("Releasing framebufferr %d...", i);
+
         info = drvdata->infos[i];
 
         if (fb_hard == 1) {
@@ -1592,6 +1590,8 @@ MODULE_PARM_DESC(physical_register_base, "Register base.");
 module_param(module_options, charp, 0000);
 MODULE_PARM_DESC(module_options, "Options just like in boot time.");
 
+
+MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Think Silicon Ltd");
 MODULE_DESCRIPTION("ThinkLCDML device driver");
 #endif
