@@ -1,4 +1,4 @@
-obj-m := thinklcdml.o
+obj-m := thinklcdml_ref.o
 
 export CROSS_COMPILE_PREFIX?=arm-xilinxa9-linux-gnueabi
 export CROSS_COMPILE=$(CROSS_COMPILE_PREFIX)-
