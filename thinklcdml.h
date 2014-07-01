@@ -148,6 +148,8 @@
 #define TLCDML_SWAP_BUFFERS             0x51
 #define TLCDML_GET_CURRENT_BUFFER       0x52
 
+#define TLCDML_NO_LOOKUP_MODE           (~(1<<20))
+
 #ifndef FBIO_WAITFORVSYNC
 #define FBIO_WAITFORVSYNC	_IOW('F', 0x20, __u32)
 #endif

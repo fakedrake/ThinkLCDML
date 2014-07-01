@@ -48,13 +48,14 @@ struct tlcdml_irq_data {
     int vbl_count;
 
     int vbl_active;	    /* Wether we should pan on vblank */
-    unsigned long vbl_offset_address;        /* The phys framebuffer address in case we must pan on vblank */
-    unsigned long vbl_layer_baseaddr; /* The baseaddress of the layer regfile. */
+    struct fb_info* info;
+    unsigned long vbl_offset_address;
 };
 
 /* Per framebuffer tlcdml specific data */
 struct tlcdml_fb_par {
-    unsigned long phys_screenbase_reg;
+    int index;
+    u32 mode;
 };
 
 /* Global driver data */
@@ -66,19 +67,33 @@ struct tlcdml_drvdata {
 };
 
 /* Pinning of the memory. */
-static u32 fb_hard;
+static unsigned long fb_hard = 0;
+static int fb_memsize = 0;
+
+static struct fb_var_screeninfo default_var;
+
+static char* module_options = NULL;
+static u32 default_color_mode = TLCD_MODE_ARGB8888;
+
 static u32 physical_regs_base = TLCD_PHYSICAL_BASE;
 static u32 register_file_size = TLCD_MMIOALLOC;
 static u16 max_alloc_layers;
 
 static void __iomem * virtual_regs_base;
+
+#ifdef USE_PLL
 static void __iomem * pll_virtual_regs_base;
+#endif
+
+#define OL(info) (((struct tlcdml_fb_par*)(info)->par)->index)
+
+#define XY16TOREG32(x, y) ((x) << 16 | ((y) & 0xffff))
 
 #define pll_write(reg, value) iowrite32((value), (unsigned *)(pll_virtual_regs_base+(reg)))
 #define pll_read(reg)   ioread32((unsigned *)(pll_virtual_regs_base+(reg)))
 
-#define tlcdml_read(reg) fb_readl((u32 __iomem *)((u32)virtual_regs_base + (reg)))
-#define tlcdml_write(reg, val) fb_writel(val, (u32 __iomem *)((unsigned long)(virtual_regs_base) + (reg)))
+#define tlcdml_read(reg) fb_readl((u32 __iomem *)((u32)(virtual_regs_base) + (reg)))
+#define tlcdml_write(reg, val) fb_writel((val), (u32 __iomem *)((unsigned long)(virtual_regs_base) + (reg)))
 
 /* Printks */
 #define PRINT_E(args...)	printk(KERN_ERR     "ThinkLCDML: " args)
@@ -94,10 +109,10 @@ static void __iomem * pll_virtual_regs_base;
 
 /* Declarations */
 static int  thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info);
-// static int thinklcdml_set_par(struct fb_info *info)
-// static int thinklcdml_setcolreg(u_int regno, u_int red, u_int green, u_int blue, u_int transp, struct fb_info *info;)
-// static int thinklcdml_mmap(struct fb_info *info, struct vm_area_struct *vma)
-// static int thinklcdml_blank(int blank_mode, struct fb_info *info)
+static int thinklcdml_set_par(struct fb_info *info);
+static int thinklcdml_setcolreg(u_int regno, u_int red, u_int green, u_int blue, u_int transp, struct fb_info *info);
+static int thinklcdml_mmap(struct fb_info *info, struct vm_area_struct *vma);
+static int thinklcdml_blank(int blank_mode, struct fb_info *info);
 static irqreturn_t thinklcdml_vsync_interrupt(int irq, void *ptr);
 static int thinklcdml_vsync(struct fb_info *info);
 static int thinklcdml_pan_display(struct fb_var_screeninfo *var, struct fb_info *info);
@@ -109,17 +124,17 @@ static int thinklcdml_remove(struct platform_device *device);
 static void __exit thinklcdml_exit(void);
 
 static struct fb_ops thinklcdml_ops = {
-    .owner	        = THIS_MODULE,
-    .fb_check_var   = thinklcdml_check_var,
-    .fb_set_par	    = thinklcdml_set_par,
-    .fb_setcolreg   = thinklcdml_setcolreg,
-    .fb_pan_display = thinklcdml_pan_display,
-    .fb_fillrect    = cfb_fillrect,
-    .fb_copyarea    = cfb_copyarea,
-    .fb_imageblit   = cfb_imageblit,
-    .fb_mmap	    = thinklcdml_mmap,
-    .fb_blank	    = thinklcdml_blank,
-    .fb_ioctl	    = thinklcdml_ioctl,
+    .owner                          = THIS_MODULE,
+    .fb_check_var                   = thinklcdml_check_var,
+    .fb_set_par                     = thinklcdml_set_par,
+     .fb_setcolreg                   = thinklcdml_setcolreg,
+    .fb_pan_display                 = thinklcdml_pan_display,
+    .fb_fillrect                    = cfb_fillrect,
+    .fb_copyarea                    = cfb_copyarea,
+    .fb_imageblit                   = cfb_imageblit,
+    .fb_mmap                        = thinklcdml_mmap,
+    .fb_blank                       = thinklcdml_blank,
+    .fb_ioctl                       = thinklcdml_ioctl,
 };
 
 static struct platform_driver thinklcdml_driver = {
@@ -141,8 +156,11 @@ static struct platform_device thinklcdml_device = {
 };
 
 
-static int tlcdml_default_fb_size(void)
+static int __inline__ tlcdml_default_fb_size(void)
 {
+    if (fb_memsize)
+	return fb_memsize;
+
     return 800*600*4;
 }
 
@@ -181,46 +199,485 @@ static int tlcdml_hard_layer(struct fb_info *info, unsigned long hard_addr, unsi
 }
 
 #ifdef USE_CMA
+
 static int tlcdml_alloc_layer(struct fb_info *info, unsigned long size)
 {
-    if ((info->screen_base = (char* __iomem)__get_free_pages(GFP_DMA | GFP_KERNEL, get_order(size))))
-	return 0;
 
-    return -ENOMEM;
+    if ((info->pseudo_palette = kzalloc(sizeof(u32) * TLCD_PALETTE_COLORS, GFP_KERNEL)) == NULL)
+	return -ENOMEM;
 
+    if ((info->screen_base = dma_alloc_coherent(NULL, info->fix.smem_len,
+						(dma_addr_t*)(&info->fix.smem_start), GFP_KERNEL)) == NULL) {
+	kfree(info->pseudo_palette);
+	return -ENOMEM;
+    }
+
+    return 0;
 }
 
 static void tlcdml_dealloc_layer(struct fb_info *info)
 {
-    free_pages((unsigned long)info->screen_base, get_order(info->fix.smem_len));
+    kfree(info->pseudo_palette);
+    dma_free_coherent(NULL, info->fix.smem_len, info->screen_base, (dma_addr_t)info->fix.smem_start);
 }
-
 #else
-
 static int tlcdml_alloc_layer(struct fb_info *info, unsigned long size)
 {
-    if ((info->screen_base = dma_alloc_coherent(NULL, info->fix.smem_len, &info->fix.smem_start, GFP_KERNEL)))
-	return 0;
+    if ((info->pseudo_palette = kzalloc(sizeof(u32) * TLCD_PALETTE_COLORS, GFP_KERNEL)) == NULL)
+	return -ENOMEM;
 
-    return -ENOMEM;
+    if ((info->screen_base = (char* __iomem)__get_free_pages(GFP_DMA | GFP_KERNEL, get_order(size)))) {
+	kfree(info->pseudo_palette);
+	return -ENOMEM;
+    }
+
+    return 0;
 }
 
 static void tlcdml_dealloc_layer(struct fb_info *info)
 {
-    dma_free_coherent(NULL, info->fix.smem_len, info->screen_base, &info->fix.smem_start);
+    kfree(info->pseudo_palette);
+    free_pages((unsigned long)info->screen_base, get_order(info->fix.smem_len));
 }
 #endif	/* USE_CMA */
 
-static void tlcdml_setup(void)
+static int __init tlcdml_setup(void)
 {
+    char *this_opt;
+    int custom = 0;
+    int count = 0;
+#ifndef MODULE
+    char *options = NULL, *separator = ",";
+#else
+    char *options = module_options, *separator = ":";
+#endif
+
+    if (!options || !*options) {
+        default_var = DEFAULT_FBCONF;
+        default_var.bits_per_pixel = 32;
+        default_var.red.offset = 16;
+        default_var.red.length = 8;
+        default_var.green.offset = 8;
+        default_var.green.length = 8;
+        default_var.blue.offset = 0;
+        default_var.blue.length = 8;
+        default_var.transp.length = 24;
+        default_var.transp.offset = 0;
+        default_color_mode = TLCD_MODE_ARGB8888;
+
+        /* Default to low resolution, Add video=thinklcdml:... to kernel command line */
+        PRINT_I("No user setup options: Defaulting to %dx%d, bpp: %d, color mode: 0x%x\n", default_var.xres, default_var.yres, default_var.bits_per_pixel, default_color_mode);
+        return 1;
+    }
+
+    while ((this_opt = strsep(&options, separator)) != NULL) {
+        if (!*this_opt)
+            continue;
+
+        if (custom) {
+            switch (count++) {
+            case 0: default_var.pixclock     = simple_strtoul(this_opt, NULL, 0); break;
+            case 1: default_var.xres         = default_var.xres_virtual = simple_strtoul(this_opt, NULL, 0); break;
+            case 2: default_var.right_margin = simple_strtoul(this_opt, NULL, 0); break;
+            case 3: default_var.hsync_len    = simple_strtoul(this_opt, NULL, 0); break;
+            case 4: default_var.left_margin  = simple_strtoul(this_opt, NULL, 0); break;
+            case 5: default_var.yres         = default_var.yres_virtual = simple_strtoul(this_opt, NULL, 0); break;
+            case 6: default_var.lower_margin = simple_strtoul(this_opt, NULL, 0); break;
+            case 7: default_var.vsync_len    = simple_strtoul(this_opt, NULL, 0); break;
+            case 8: default_var.upper_margin = simple_strtoul(this_opt, NULL, 0); break;
+            case 9:
+                if (!strcmp(this_opt, "LUT8")) {
+                    default_var.bits_per_pixel = 8, default_var.red.offset = 0;
+                    default_color_mode = TLCD_MODE_LUT8;
+                } else if (!strcmp(this_opt, "RGB16")) {
+                    default_var.bits_per_pixel = 16;
+                    default_var.red.offset = 11;
+                    default_var.red.length = 5;
+                    default_var.green.offset = 6;
+                    default_var.green.length = 5;
+                    default_var.blue.offset = 1;
+                    default_var.blue.length = 5;
+                    default_var.transp.length = 1;
+                    default_var.transp.offset = 0;
+                    default_color_mode = TLCD_MODE_RGBA5551;
+
+                } else if (!strcmp(this_opt, "RGB32")) {
+                    /* default_var.bits_per_pixel = 32; */
+		    /* default_var.red.offset = 24; */
+		    /* default_var.red.length = 8; */
+		    /* default_var.green.offset = 16; */
+		    /* default_var.green.length = 8; */
+		    /* default_var.blue.offset = 8; */
+		    /* default_var.blue.length = 8; */
+		    /* default_var.transp.length = 8; */
+		    /* default_var.transp.offset = 0; */
+		    /* default_color_mode = TLCD_MODE_RGBA8888; */
+
+                    default_var.bits_per_pixel = 32;
+                    default_var.red.offset = 16;
+                    default_var.red.length = 8;
+                    default_var.green.offset = 8;
+                    default_var.green.length = 8;
+                    default_var.blue.offset = 0;
+                    default_var.blue.length = 8;
+                    default_var.transp.length = 24;
+                    default_var.transp.offset = 0;
+                    default_color_mode = TLCD_MODE_ARGB8888;
+                } else if (!strcmp(this_opt, "RGB332")) {
+                    default_var.bits_per_pixel = 8;
+                    default_var.red.offset = 5;
+                    default_var.red.length = 3;
+                    default_var.green.offset = 2;
+                    default_var.green.length = 3;
+                    default_var.blue.offset = 0;
+                    default_var.blue.length = 2;
+                    default_color_mode = TLCD_MODE_RGB332;
+                } else if (!strcmp(this_opt, "RGBA565")) {
+                    default_var.bits_per_pixel = 16;
+                    default_var.red.offset = 11;
+                    default_var.red.length = 5;
+                    default_var.green.offset = 5;
+                    default_var.green.length = 6;
+                    default_var.blue.offset = 0;
+                    default_var.blue.length = 5;
+                    default_color_mode = TLCD_MODE_RGBA565;
+                } else if (!strcmp(this_opt, "ARGB8888")) {
+                    default_var.bits_per_pixel = 32;
+                    default_var.red.offset = 16;
+                    default_var.red.length = 8;
+                    default_var.green.offset = 8;
+                    default_var.green.length = 8;
+                    default_var.blue.offset = 0;
+                    default_var.blue.length = 8;
+                    default_color_mode = TLCD_MODE_ARGB8888;
+                } else if (!strcmp(this_opt, "L8"))
+                    default_var.bits_per_pixel = 8, default_var.grayscale = 1, default_color_mode = TLCD_MODE_L8;
+                else {
+                    PRINT_W("Unknown format '%s', defaulting to 8-bit palette mode\n", this_opt);
+                    default_var.bits_per_pixel = 8, default_var.red.offset = 0;
+                }
+                break;
+
+            case 10: fb_memsize = PAGE_ALIGN(simple_strtoul(this_opt, NULL, 0)); break;
+            case 11: fb_hard = simple_strtoul(this_opt, NULL, 0); custom = 0; break;
+            }
+        } else if (!strcmp(this_opt, "1024x768")) {
+            default_var = m1024x768_60;
+            custom = 1;
+            count = 9;
+        } else if (!strcmp(this_opt, "800x600")) {
+            default_var = m800x600_60;
+            custom = 1;
+            count = 9;
+        } else if (!strcmp(this_opt, "640x480")) {
+            default_var = m640x480_60;
+            custom = 1;
+            count = 9;
+        } else if (!strcmp(this_opt, "800x480")) {
+            default_var = m800x480_60;
+            custom = 1;
+            count = 9;
+        } else if (!strcmp(this_opt, "1024x600")) {
+            default_var = m1024x600_60;
+            custom = 1;
+            count = 9;
+        } else if (!strcmp(this_opt, "custom")) {
+            custom = 1;
+            PRINT_I("Custom mode set");
+        } else {
+            PRINT_W("Unknown mode '%s', defaulting to 1024x768 16-bit palette mode\n", this_opt);
+            return 1;
+        }
+
+    }
+
+    return 1;
 }
+
+/**
+ * Computes the surface pitch based on a resolution and bpp
+ */
+static __inline__ u_long tlcdml_get_line_length(int xres_virtual, int bpp)
+{
+    return ((xres_virtual * bpp + 31) & ~31) >> 3;
+}
+
+static __inline__ void tlcdml_dump_var(const struct fb_info *info)
+{
+    PRINT_D("FB VAR:\n");
+    PRINT_D("Res: %dx%d\n", info->var.xres, info->var.yres);
+    PRINT_D("Margins: L:%d, R:%d, U:%d, D:%d\n", info->var.left_margin, info->var.right_margin, info->var.upper_margin, info->var.lower_margin);
+    PRINT_D("bpp: %d\n", info->var.bits_per_pixel);
+    PRINT_D("offsets: R:%d, G:%d, B:%d, A:%d\n", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
+    PRINT_D("PixClock: %d\n", info->var.pixclock);
+    PRINT_D("right_margin = %d", info->var.right_margin);
+    PRINT_D("lower_margin = %d", info->var.lower_margin);
+    PRINT_D("hsync_len = %d", info->var.hsync_len);
+    PRINT_D("vsync_len = %d", info->var.vsync_len);
+}
+
+
+/* Fill in the pallete. */
+static int thinklcdml_setcolreg(u_int regno, u_int red, u_int green, u_int blue, u_int transp, struct fb_info *info)
+{
+    u32 out_val;
+
+    if (regno >= TLCD_PALETTE_COLORS)
+        return -EINVAL;
+
+    /* grayscale = 0.30*R + 0.59*G + 0.11*B */
+    if (info->var.grayscale)
+        red = green = blue = (red * 77 + green * 151 + blue * 28) >> 8;
+
+    if (info->fix.visual == FB_VISUAL_TRUECOLOR || info->fix.visual == FB_VISUAL_DIRECTCOLOR) {
+        red    = (red	 >> (8 + 8 - info->var.red.length));
+        green  = (green	 >> (8 + 8 - info->var.green.length));
+        blue   = (blue	 >> (8 + 8 - info->var.blue.length));
+        transp = (transp >> (8 + 8 - info->var.transp.length));
+
+        out_val = (red << info->var.red.offset) | (green << info->var.green.offset) | (blue << info->var.blue.offset);
+    } else {
+        red    >>= 8;
+        green  >>= 8;
+        blue   >>= 8;
+        transp >>= 8;
+
+        out_val = (red << 16) | (green << 8) | (blue << 0);
+    }
+
+    /* the pseudo_palette expects color values in screen format, computed as seen above */
+    ((u32*)info->pseudo_palette)[regno] = out_val;
+
+    /* the hardware always expects an RGB888 value */
+    tlcdml_write(TLCD_PALETTE_OFFSET + regno * 4, out_val); // (red << 16) | (green << 8) | (blue << 0));
+    return 0;
+}
+
+#ifdef USE_PLL
+static __inline__ void tlcdml_setup_pll()
+{
+    if ( pixclkpll_v_regs_base == 0) {
+        PRINT_D("Performing ioremap for PixClkPll registers (physical base: 0x%08lx, len: 0x%08x).", PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
+        pixclkpll_v_regs_base = (unsigned long)ioremap_nocache(PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
+        if (!pixclkpll_v_regs_base) {
+            PRINT_E("MMIO remap for PixClkPll register file failed\n");
+        } else
+            PRINT_I("MMIO for PixClkPll register file PA:0x%08lx -> VA:0x%08lx len:%u\n", physical_register_base, virtual_regs_base, TLCD_MMIOALLOC);
+    }
+
+    PRINT_D("PLL MAGIC = 0x%x (== 0xc350)", pll_reg_read(0x210));
+    PRINT_I("Programming PLL:\n");
+    PRINT_I("1/5\n");
+    pll_reg_write(PIXCLKPLL_RESET,        0xa);
+
+//  while ( pll_reg_read(PIXCLKPLL_STATUS)) ) ;
+    volatile int delay = 1000000;
+    PRINT_D("PIXCLKPLL_STATUS = 0x%08x ", pll_reg_read(PIXCLKPLL_STATUS));
+    PRINT_I("2/5\n");
+    PRINT_D("PIXCLKPLL_CLK0DIV = 0x%08x ", pll_reg_read(PIXCLKPLL_CLK0DIV));
+    pll_reg_write(PIXCLKPLL_CLK0DIV,      0x00000032);
+    delay = 1000000; while( delay-- );
+    PRINT_I("3/5\n");
+    PRINT_D("PIXCLKPLL_GLOBMULDIV = 0x%08x\n", pll_reg_read(PIXCLKPLL_GLOBMULDIV));
+
+    u32 glmuldiv = (((u32) (1000000 / info->var.pixclock)) <<  8) | 0x01;
+    PRINT_D("NEW PIXCLKPLL_GLOBMULDIV = 0x%08x\n", glmuldiv);
+
+
+    pll_reg_write(PIXCLKPLL_GLOBMULDIV,   glmuldiv);
+    delay = 1000000; while( delay-- );
+    PRINT_I("4/5\n");
+    pll_reg_write(PIXCLKPLL_LOAD,         0x7);
+    delay = 1000000; while( delay-- );
+    PRINT_I("5/5\n");
+    pll_reg_write(PIXCLKPLL_LOAD,         0x2);
+    delay = 1000000; while( delay-- );
+    PRINT_I("Done Programming PLL!\n");
+}
+#else
+#define tlcdml_setup_pll()
+#endif	/* USE_PLL */
+
+/**
+ * tlcdml_setup_color_mode - Setup info and par to fit the color mode
+ */
+static int __inline__ tlcdml_setup_color_mode(struct fb_info* info)
+{
+    u32* mode = &((struct tlcdml_fb_par*)info->par)->mode;
+
+    switch(info->var.bits_per_pixel) {
+    case  8:
+        info->fix.visual = info->var.red.offset ? FB_VISUAL_TRUECOLOR : FB_VISUAL_PSEUDOCOLOR;
+        *mode = info->var.grayscale ? TLCD_MODE_L8 : (info->var.red.offset ? TLCD_MODE_RGB332 : TLCD_MODE_LUT8);
+	break;
+    case 16:
+        info->fix.visual = FB_VISUAL_TRUECOLOR;
+        *mode = info->var.transp.length == 1 ? TLCD_MODE_RGBA5551 : TLCD_MODE_RGBA565;
+
+        break;
+    case 32:
+        info->fix.visual = FB_VISUAL_TRUECOLOR;
+
+        if (info->var.red.offset == 16 &&			\
+	    info->var.green.offset == 8 &&			\
+	    info->var.blue.offset == 0) {
+            *mode = TLCD_MODE_ARGB8888;
+            PRINT_I("Switching to ARGB8888\n");
+        }
+        else if (info->var.red.offset == 0  &&			\
+		 info->var.green.offset == 8  &&		\
+		 info->var.blue.offset == 16) {
+            *mode = TLCD_MODE_ABGR8888;
+            PRINT_I("Switching to ABGR8888\n");
+        }
+        else if (info->var.red.offset == 24 &&			\
+		 info->var.green.offset == 16 &&		\
+		 info->var.blue.offset == 8) {
+            *mode = TLCD_MODE_RGBA8888;
+            PRINT_I("Switching to RGBA8888\n");
+        }
+        else if ( info->var.red.offset == 8  && info->var.green.offset == 16 && info->var.blue.offset == 24 ) {
+            *mode = TLCD_MODE_BGRA8888;
+            PRINT_I("Switching to BGRA8888\n");
+        }
+        else {
+            PRINT_W("Unsupported mode: R:%d, G:%d, B:%d, A:%d. Switching to RGBA8888\n",
+		    info->var.red.offset, info->var.green.offset,
+		    info->var.blue.offset, info->var.transp.offset);
+            *mode = TLCD_MODE_RGBA8888;
+        }
+        break;
+    default:
+        PRINT_W("Unable to determine bits per pixel or color...");
+        return -EINVAL;
+    }
+
+    return 0;
+}
+
+/**
+   Apply the registers according to the par of this info.
+   `thinklcdml_check_var' does something like this only it populates
+   var instead of setting up the hw.
+*/
+static int thinklcdml_set_par(struct fb_info *info)
+{
+    int resx, resy, frontporchx, frontporchy, blankx, blanky, backporchx, backporchy;
+    u32 i, mask;
+    u8 red, green, blue;
+    u32* mode = &((struct tlcdml_fb_par*)info->par)->mode;
+
+    tlcdml_dump_var(info);
+
+    mask        = info->var.bits_per_pixel == 8 ? ~0 : ~TLCD_MODE_LUT8;
+    resx        = info->var.xres;
+    resy        = info->var.yres;
+    frontporchx = resx + info->var.right_margin;
+    frontporchy = resy + info->var.lower_margin;
+    blankx      = frontporchx + info->var.hsync_len;
+    blanky      = frontporchy + info->var.vsync_len;
+    backporchx  = blankx + info->var.left_margin;
+    backporchy  = blanky + info->var.upper_margin;
+
+    tlcdml_write(TLCD_REG_LAYER_STARTXY(OL(info)), 0x00000000 );
+    tlcdml_write(TLCD_REG_LAYER_RESXY(OL(info)),  XY16TOREG32(resx, resy));
+    tlcdml_write(TLCD_REG_RESXY,                  XY16TOREG32(resx, resy));
+    tlcdml_write(TLCD_REG_LAYER_SIZEXY(OL(info)), XY16TOREG32(resx, resy));
+    tlcdml_write(TLCD_REG_FRONTPORCHXY,           XY16TOREG32(frontporchx, frontporchy));
+    tlcdml_write(TLCD_REG_BLANKINGXY,             XY16TOREG32(blankx, blanky));
+    tlcdml_write(TLCD_REG_BACKPORCHXY,            XY16TOREG32(backporchx, backporchy));
+
+    info->fix.line_length = tlcdml_get_line_length(info->var.xres_virtual, info->var.bits_per_pixel);
+
+
+    /* Decide on color mode */
+    if (tlcdml_setup_color_mode(info))
+	return -EINVAL;
+
+    if (unlikely(info->var.bits_per_pixel == 8 && (*mode & 0x7) == TLCD_MODE_L8)) {
+	/* The odds of it actually being grayscale or 332 are quite
+	 * slim... so do this anyway */
+	for(i = 0; i < 256; i++) {
+	    red = green = blue = CLAMP255(i);
+	    tlcdml_write(TLCD_PALETTE_OFFSET + i * 4,
+			 (red << 16) | (green << 8) | (blue << 0));
+	}
+	tlcdml_write(TLCD_REG_MODE, *mode | TLCD_CONFIG_GAMMA);
+    }
+
+    /* Get reg mode */
+    /* XXX: mode 80000000, front proch */
+    *mode |= (tlcdml_read(TLCD_REG_MODE) & mask) | TLCD_CONFIG_ENABLE | (0xff << 16);
+
+    /* TLCD_REG_MODE needs 0x2c0 for ZYNQ702 and 0x3c0 when
+     * TLCD_CLKCTRL sets clock divider to 2 (0x402) */
+#ifdef ZC702
+    tlcdml_write(TLCD_REG_MODE , 1<<31 | 1<<22 | 0x2c0 | ((TLCD_CLKCTRL & 0x2) << 7) );
+#else
+    tlcdml_write(TLCD_REG_MODE , 1<<31 | 1<<22);
+#endif
+
+    tlcdml_write (TLCD_REG_CLKCTRL, TLCD_CLKCTRL);
+    tlcdml_write (TLCD_REG_BGCOLOR , TLCD_BGCOLOR);
+
+    PRINT_D("Actually enabling fb%d", OL(info));
+    /* Enable, global full alpha, color mode as defined. */
+    tlcdml_write(TLCD_REG_LAYER_MODE(OL(info)), *mode);
+    tlcdml_write(TLCD_REG_LAYER_STRIDE(OL(info)), info->fix.line_length);
+    /* tlcdml_write(TLCD_REG_LAYER_STRIDE(OL(info)), 0x4ec0); */
+
+    tlcdml_setup_pll();
+    return 0;
+}
+
+static int thinklcdml_mmap(struct fb_info *info, struct vm_area_struct *vma)
+{
+    if (vma->vm_pgoff)
+        return -EINVAL;
+
+    if ((vma->vm_end - vma->vm_start) > info->fix.smem_len) {
+        PRINT_E("Failed to mmap, %lu bytes requested\n", vma->vm_end - vma->vm_start);
+        return -EINVAL;
+    }
+
+    /* Masks page protection with non-cached if there is mmu going
+     * on. */
+    vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
+    vma->vm_flags |= VM_IO | VM_MAYSHARE | VM_SHARED;
+
+    if (io_remap_pfn_range(vma, vma->vm_start, info->fix.smem_start >> PAGE_SHIFT, vma->vm_end - vma->vm_start, vma->vm_page_prot))
+        return -EAGAIN;
+
+    return 0;
+}
+
+/* REFACTOR */
+/* This does not clear the framebuffer, just the screen. */
+static int
+thinklcdml_blank(int blank_mode, struct fb_info *info)
+{
+    u32 mode_reg;
+
+    PRINT_D("blank: %d", blank_mode);
+
+    /* blank out the screen by setting or clearing TLCD_MODE bit 31 */
+    mode_reg = tlcdml_read(TLCD_REG_MODE);
+
+    if (blank_mode == 0)
+        ; //tlcdml_write(par->regs, TLCD_REG_MODE, mode_reg | 1<<19);
+    else if (blank_mode == 1)
+        ; //tlcdml_write(par->regs, TLCD_REG_MODE, mode_reg & ~(1<<19));
+    else
+        return -EINVAL;
+
+    return 0;
+}
+
+
 
 static int  thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
-    struct thinklcdml_par *par = info->par;
     u_long line_length;
-
-    PRINT_PROC_ENTRY;
 
     PRINT_D("Res: %dx%d\n", info->var.xres, info->var.yres);
     PRINT_D("Margins: L:%d, R:%d, U:%d, D:%d\n", info->var.left_margin, info->var.right_margin, info->var.upper_margin, info->var.lower_margin);
@@ -267,7 +724,7 @@ static int  thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *
 
     /* Special way to enter test mode. */
     if (var->bits_per_pixel == 0)
-        par->mode = TLCD_MODE_TEST;
+        PRINT_W("Tried to set zeero bits per pixel.");
 
     /* Sanity check bpp */
     if (var->bits_per_pixel <= 8)
@@ -283,7 +740,7 @@ static int  thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *
 
 #ifdef USE_ONLY_800x600
     if ( var->xres != 800 || var->yres != 600 ) {
-//        PRINT_E("Not suppored resolution!\n");
+        PRINT_E("Unsuppored resolution %dx%d!\n", var->xres, var->yres);
         return -EINVAL;
     }
 #endif
@@ -295,9 +752,10 @@ static int  thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *
         var->yres_virtual = var->yoffset + var->yres;
 
     /* Check the new memory size. */
-    line_length = get_line_length(var->xres_virtual, var->bits_per_pixel);
+    line_length = tlcdml_get_line_length(var->xres_virtual, var->bits_per_pixel);
     if (line_length * var->yres_virtual > info->screen_size) {
-        PRINT_W("Bad mode: out of memory (virtual:%ux%u bpp:%u)\n", var->xres_virtual, var->yres_virtual, var->bits_per_pixel);
+        PRINT_W("Bad mode: out of memory (virtual:%ux%u bpp:%u)\n",
+		var->xres_virtual, var->yres_virtual, var->bits_per_pixel);
         return -ENOMEM;
     }
 
@@ -398,7 +856,7 @@ static irqreturn_t thinklcdml_vsync_interrupt(int irq, void *ptr)
     data->vbl_count++;
 
     if ( data->vbl_active == 1 ) {
-	tlcdml_write(data->vbl_layer_baseaddr, data->vbl_offset_address);
+	tlcdml_write(TLCD_REG_LAYER_BASEADDR(OL(data->info)), data->vbl_offset_address);
 	data->vbl_active = 0;
     }
 
@@ -455,13 +913,13 @@ static int thinklcdml_pan_display(struct fb_var_screeninfo *var, struct fb_info 
     info->var.xoffset = var->xoffset;
     info->var.yoffset = var->yoffset;
     /* compute new base address */
-    phys_address = info->fix.smem_start +var->yoffset * info->fix.line_length + var->xoffset * (var->bits_per_pixel >> 3);
+    phys_address = info->fix.smem_start + var->yoffset * info->fix.line_length + var->xoffset * (var->bits_per_pixel >> 3);
 
 
     /* Handle this at  vblank */
     if ( var->activate == FB_ACTIVATE_VBL ) {
 	/* Tell the interrupt callback how to handle the situation */
-	irq_data->vbl_layer_baseaddr = par->phys_screenbase_reg;
+	irq_data->info = info;
 	irq_data->vbl_offset_address = phys_address;
 
 	if (irq_data->vbl_active != 1) {
@@ -479,7 +937,7 @@ static int thinklcdml_pan_display(struct fb_var_screeninfo *var, struct fb_info 
 #endif
     }
     else {
-	tlcdml_write(par->phys_screenbase_reg, phys_address);
+	tlcdml_write(TLCD_REG_LAYER_BASEADDR(par->index), phys_address);
     }
 
     return ret;
@@ -595,7 +1053,7 @@ static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned lon
  *
  */
 
-static inline int tlcdml_alloc_layers(struct platform_device* device, const unsigned long hard_phys_addr)
+static int __inline__ tlcdml_alloc_layers(struct platform_device* device, const unsigned long hard_phys_addr)
 {
     struct tlcdml_drvdata* drvdata = platform_get_drvdata(device);
     struct fb_info *info;
@@ -644,7 +1102,16 @@ static inline int tlcdml_alloc_layers(struct platform_device* device, const unsi
 	memset(info->screen_base, 0, info->fix.smem_len);
 
 	/* Setup tlcdml sepcific parameters */
-	par->phys_screenbase_reg = TLCD_REG_LAYER_BASEADDR(drvdata->s_top);
+	par->index = drvdata->s_top;
+	info->var = default_var;
+
+	/* Setup registers */
+	tlcdml_write(TLCD_REG_LAYER_SCALEY(par->index),  0x4000);
+	tlcdml_write(TLCD_REG_LAYER_SCALEX(par->index),  0x4000);
+	tlcdml_write(TLCD_REG_LAYER_BASEADDR(par->index), info->fix.smem_start);
+	tlcdml_write(TLCD_REG_LAYER_MODE(par->index),
+		     ((par->index ? 0 : TLCD_CONFIG_ENABLE) | TLCD_MODE | default_color_mode ));
+
     } while (tlcdml_push_info(info, drvdata));
 
     return ret;
@@ -671,6 +1138,7 @@ static inline void tlcdml_dealloc_layers(struct platform_device* device)
 	    tlcdml_dealloc_layer(info);
 	}
 
+	kfree(info->pseudo_palette);
 	unregister_framebuffer(info);
 	framebuffer_release(info);
     }
@@ -825,6 +1293,7 @@ static int thinklcdml_remove(struct platform_device *device)
     release_mem_region(physical_regs_base, register_file_size);
 
     tlcdml_dealloc_layers(device);
+    kfree(drvdata);
 
     return 0;
 }
@@ -836,6 +1305,13 @@ static void __exit thinklcdml_exit(void)
 
 module_init(thinklcdml_init);
 module_exit(thinklcdml_exit);
+
+module_param(fb_memsize, int, 0644);
+MODULE_PARM_DESC(fb_memsize, "Framebuffer memory size");
+module_param(fb_hard, ulong, 0644);
+MODULE_PARM_DESC(fb_hard, "Framebuffer memory base.");
+module_param(module_options, charp, 0000);
+MODULE_PARM_DESC(module_options, "Options just like in boot time.");
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Think Silicon Ltd");
