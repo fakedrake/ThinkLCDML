@@ -295,6 +295,18 @@ static void tlcdml_dealloc_layer(struct fb_info *info)
 }
 #endif	/* USE_CMA */
 
+
+/* Module options:
+ if custom:
+ <defaults>#<pixclock>#<xres>#<xres_virtual>#<right_margin>#<hsync_len>#<left_margin>#<yres>#<yres_virtual>#<lower_margin>#<vsync_len>#<color_mode>
+
+ <defaults> in {1024x768, 800x600, 640x480, 800x480, 1024x600, custom}
+ and sets the initial values.
+
+ Where # is eithe ',' or ':' depending on wether you are passing
+ options on kernel or loading it as module respectively. You can stop
+ at any point providing.
+*/
 static int __init tlcdml_setup(void)
 {
     char *this_opt;
