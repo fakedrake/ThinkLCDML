@@ -128,6 +128,7 @@
 #define TLCD_CONFIG_ENDIAN	(1 << 25)
 #define TLCD_CONFIG_STEREO	(1 << 4)
 #define TLCD_CONFIG_GAMMA	(1 << 20)
+#define TLCD_CONFIG_YUYV        0x2c0
 
 #define FBIO_CAMERA         0x32
 #define FBIO_LAYER1_SET     0x30
@@ -152,6 +153,15 @@
 
 #ifndef FBIO_WAITFORVSYNC
 #define FBIO_WAITFORVSYNC	_IOW('F', 0x20, __u32)
+#endif
+
+
+/* TLCD_REG_MODE needs 0x2c0 for ZYNQ702 and 0x3c0 when
+ * TLCD_CLKCTRL sets clock divider to 2 (0x402) */
+#ifdef ZC702
+#define TLCD_DEFAULT_MODE (1<<31 | 1<<22 | TLCD_CONFIG_YUYV)  /* | ((TLCD_CLKCTRL & 0x2) << 7) */
+#else
+#define TLCD_DEFAULT_MODE (1<<31 | 1<<22)  /* | ((TLCD_CLKCTRL & 0x2) << 7) */
 #endif
 
 static struct fb_var_screeninfo m640x480_60 = {
