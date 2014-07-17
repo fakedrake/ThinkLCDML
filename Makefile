@@ -4,15 +4,15 @@ CFLAGS_thinklcdml.o := '-DBUILD_DATE="$(shell date)"'
 export ARCH?=arm
 export LINUX_HEADERS?=/tools/Xilinx/Boards/Zynq/Linux/linux-xlnx
 
-NFS_ROOT=/srv/nfs
+THINKLCDML_DIR?=$(PWD)
 
 all: thinklcdml.ko thinklcdml_old.ko
 
 %.ko: %.c
-	make -C $(LINUX_HEADERS) M=$(PWD) CROSS_COMPILE=$(CROSS_COMPILE)  V=1 modules
+	$(MAKE) -C $(LINUX_HEADERS) M=$(THINKLCDML_DIR) CROSS_COMPILE=$(CROSS_COMPILE)  V=1 modules
 
 install:
-	make -C $(LINUX_HEADERS) M=$(PWD) CROSS_COMPILE=$(CROSS_COMPILE) INSTALL_MOD_PATH=$(NFS_ROOT) V=1 modules_install
+	$(MAKE) -C $(LINUX_HEADERS) M=$(PWD) CROSS_COMPILE=$(CROSS_COMPILE) V=1 modules_install
 
 clean:
 	make -C $(LINUX_HEADERS) M=$(PWD) clean
