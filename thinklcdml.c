@@ -35,6 +35,10 @@
 #include "thinklcdml.h"
 
 
+#ifdef USE_CMA
+#include <linux/dma-mapping.h>
+#endif
+
 #ifdef BUILD_DATE
 #define TLCDML_BUILD_DATE BUILD_DATE
 #else
@@ -101,16 +105,16 @@ static void __iomem * virtual_regs_base;
 
 #ifdef USE_PLL
 static void __iomem * pll_virtual_regs_base;
+
+#define pll_write(reg, value) iowrite32((value), (unsigned *)(pll_virtual_regs_base+(reg)))
+#define pll_read(reg)   ioread32((unsigned *)(pll_virtual_regs_base+(reg)))
 #endif
 
 #define OL(info) (((struct tlcdml_fb_par*)(info)->par)->index)
 
 #define XY16TOREG32(x, y) ((x) << 16 | ((y) & 0xffff))
 
-#define pll_write(reg, value) iowrite32((value), (unsigned *)(pll_virtual_regs_base+(reg)))
-#define pll_read(reg)   ioread32((unsigned *)(pll_virtual_regs_base+(reg)))
-
-#define TLCDML_DUMMY
+/* #define TLCDML_DUMMY */
 #ifdef TLCDML_DUMMY
 #define tlcdml_read(reg) 0
 #define tlcdml_write(reg, val) do {} while(0)
@@ -181,20 +185,18 @@ static struct platform_device thinklcdml_device = {
 
 
 #ifdef USE_PLL
-static inline int tlcdml_setup_pll_pixclock (const struct platform_device* device)
+static inline int tlcdml_setup_pll_pixclock(void)
 {
-    struct tlcdml_drvdata
+    /* Request MMIO for PixClkPll */
+    if (!request_mem_region(PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC, "tlcdml pll clock")) {
+	return -ENOMEM;
+    }
 
-	/* Request MMIO for PixClkPll */
-	if (!request_mem_region(PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC, device->name)) {
-	    return -ENOMEM;
-	}
-
-    if ( pll_virtual_regs_base == NULL) {
-	PRINT_D("Performing ioremap for PixClkPll registers (physical base: 0x%08lx, len: 0x%08x).", PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
-	pll_virtual_regs_base = ioremap_nocache(PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
-	if (!pixclkpll_v_regs_base) {
-	    release_mem_region(PIXCLK_BASEADDR, PIXCLKPLL_MMIOALLOC);
+    if (!pll_virtual_regs_base) {
+	PRINT_D("Performing ioremap for PixClkPll registers (physical base: 0x%08x, len: 0x%08x).",
+		PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
+	if (!(pll_virtual_regs_base = ioremap_nocache(PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC))) {
+	    release_mem_region(PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
 	    return -ENOMEM;
 	}
     }
@@ -203,25 +205,26 @@ static inline int tlcdml_setup_pll_pixclock (const struct platform_device* devic
 
     pll_write(PIXCLKPLL_RESET, 0xa);
     pll_write(PIXCLKPLL_CLK0DIV, 0x00000032);
-    udelay(1000000);
+    PRINT_D("wroet to clkdiv");
+    udelay(1000);
     pll_write(PIXCLKPLL_GLOBMULDIV, 0x00002801);
-    udelay(1000000);
+    udelay(1000);
     pll_write(PIXCLKPLL_LOAD, 0x7);
-    udelay(1000000);
+    udelay(1000);
     pll_write(PIXCLKPLL_LOAD, 0x2);
-    udelay(1000000);
+    udelay(1000);
 
     return 0;
 }
 
-static inline int tlcdml_release_pll_pixclock (const struct platform_device* device)
+static inline void tlcdml_release_pll_pixclock(void)
 {
     release_mem_region(PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
     iounmap(pll_virtual_regs_base);
 }
 #else
 #define tlcdml_release_pll_pixclock()
-#define tlcdml_setup_pll_pixclock(d) 0
+static inline int  tlcdml_setup_pll_pixclock(void) {return 0;}
 #endif
 
 static int __inline__ tlcdml_default_fb_size(void)
@@ -308,7 +311,6 @@ static void tlcdml_dealloc_layer(struct fb_info *info)
     free_pages((unsigned long)info->screen_base, get_order(info->fix.smem_len));
 }
 #endif	/* USE_CMA */
-
 
 /* Module options:
    if custom:
@@ -496,54 +498,10 @@ static __inline__ void tlcdml_dump_var(const struct fb_info *info)
     PRINT_D("vsync_len = %d", info->var.vsync_len);
 }
 
-#ifdef USE_PLL
-static __inline__ void tlcdml_setup_pll()
-{
-    if ( pixclkpll_v_regs_base == 0) {
-	PRINT_D("Performing ioremap for PixClkPll registers (physical base: 0x%08lx, len: 0x%08x).", PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
-	pixclkpll_v_regs_base = (unsigned long)ioremap_nocache(PIXCLKPLL_BASEADDR, PIXCLKPLL_MMIOALLOC);
-	if (!pixclkpll_v_regs_base) {
-	    PRINT_E("MMIO remap for PixClkPll register file failed");
-	} else
-	    PRINT_I("MMIO for PixClkPll register file PA:0x%08lx -> VA:0x%08lx len:%u", physical_register_base, virtual_regs_base, TLCD_MMIOALLOC);
-    }
-
-    PRINT_D("PLL MAGIC = 0x%x (== 0xc350)", pll_reg_read(0x210));
-    PRINT_I("Programming PLL:");
-    PRINT_I("1/5");
-    pll_reg_write(PIXCLKPLL_RESET,        0xa);
-
-    //  while ( pll_reg_read(PIXCLKPLL_STATUS)) ) ;
-    volatile int delay = 1000000;
-    PRINT_D("PIXCLKPLL_STATUS = 0x%08x ", pll_reg_read(PIXCLKPLL_STATUS));
-    PRINT_I("2/5");
-    PRINT_D("PIXCLKPLL_CLK0DIV = 0x%08x ", pll_reg_read(PIXCLKPLL_CLK0DIV));
-    pll_reg_write(PIXCLKPLL_CLK0DIV,      0x00000032);
-    delay = 1000000; while( delay-- );
-    PRINT_I("3/5");
-    PRINT_D("PIXCLKPLL_GLOBMULDIV = 0x%08x", pll_reg_read(PIXCLKPLL_GLOBMULDIV));
-
-    u32 glmuldiv = (((u32) (1000000 / info->var.pixclock)) <<  8) | 0x01;
-    PRINT_D("NEW PIXCLKPLL_GLOBMULDIV = 0x%08x", glmuldiv);
-
-    pll_reg_write(PIXCLKPLL_GLOBMULDIV,   glmuldiv);
-    delay = 1000000; while( delay-- );
-    PRINT_I("4/5");
-    pll_reg_write(PIXCLKPLL_LOAD,         0x7);
-    delay = 1000000; while( delay-- );
-    PRINT_I("5/5");
-    pll_reg_write(PIXCLKPLL_LOAD,         0x2);
-    delay = 1000000; while( delay-- );
-    PRINT_I("Done Programming PLL!");
-}
-#else
-#define tlcdml_setup_pll()
-#endif	/* USE_PLL */
-
 /**
  * tlcdml_setup_color_mode - Setup info and par to fit the color mode
  */
-static int __inline__ tlcdml_setup_color_mode(struct fb_info* info)
+static __inline__ int tlcdml_setup_color_mode(struct fb_info* info)
 {
     u32* mode = &((struct tlcdml_fb_par*)info->par)->mode;
 
@@ -634,19 +592,13 @@ tlcdml_add_remove_info(struct platform_device* device, const unsigned long hard_
     info->device          = &device->dev;
     par->index            = drvdata->s_top;
 
-    PRINT_D("Register framebuffer");
-    if ((ret = register_framebuffer(info)) < 0) {
-	PRINT_E("Failed to register framebuffer info. (errno: %d)", ret);
-	goto release_fb;
-    }
-
     /* First try hard_phys_addr, if that fails fallback to normal allocation. */
     PRINT_D("First try hard_phys_addr, if that fails fallback to normal allocation.");
     if ((hard_phys_addr &&
 	 tlcdml_hard_layer(info, hard_phys_addr, fb_size) < 0) ||
 	(tlcdml_alloc_layer(info, fb_size) < 0)) {
 	PRINT_E("Failed to allocate framebuffer memory.");
-	goto unregister_fb;
+	goto release_fb;
     }
 
     /* Avoid page migration. Notice that this is done even on hard
@@ -676,10 +628,24 @@ tlcdml_add_remove_info(struct platform_device* device, const unsigned long hard_
 	goto free_palette;
     }
 
+    /* This needs to be las because it triggers hooks that expect suff
+     * to be in place. */
+    PRINT_D("Register framebuffer");
+    if ((ret = register_framebuffer(info)) < 0) {
+	PRINT_E("Failed to register framebuffer info. (errno: %d)", ret);
+	goto free_palette;
+    }
+
+
     return info;
 
 free_fb:			/* Jump here to just free everything. */
     PRINT_D("Freing layer");
+
+/* unregister_fb: */
+    PRINT_D("Unregistgering framebuffer.");
+    unregister_framebuffer(info);
+
 free_palette:
     PRINT_D("Freing palette.");
     kfree(info->pseudo_palette);
@@ -700,10 +666,6 @@ unreserve_pg:
 	release_mem_region(info->fix.smem_start, info->fix.smem_len);
     } else
 	tlcdml_dealloc_layer(info);
-
-unregister_fb:
-    PRINT_D("Unregistgering framebuffer.");
-    unregister_framebuffer(info);
 
 release_fb:
     PRINT_D("Framebuffer release.");
@@ -734,7 +696,9 @@ static int __inline__ tlcdml_alloc_layers(struct platform_device* device, const 
 	    PRINT_E("Failed to add layer %d.", drvdata->s_top);
 	    return -ENOMEM;
 	}
+
 	/* Setup registers */
+	PRINT_D("Setting up registers (virt offset: %p)", virtual_regs_base);
 	tlcdml_write(TLCD_REG_LAYER_SCALEY(OL(info)),  0x4000);
 	tlcdml_write(TLCD_REG_LAYER_SCALEX(OL(info)),  0x4000);
 	tlcdml_write(TLCD_REG_LAYER_BASEADDR(OL(info)), info->fix.smem_start);
@@ -855,7 +819,7 @@ static int thinklcdml_set_par(struct fb_info *info)
     tlcdml_write(TLCD_REG_LAYER_STRIDE(OL(info)), info->fix.line_length);
     /* tlcdml_write(TLCD_REG_LAYER_STRIDE(OL(info)), 0x4ec0); */
 
-    tlcdml_setup_pll();
+    tlcdml_setup_pll_pixclock();
     return 0;
 }
 
@@ -1084,6 +1048,7 @@ static int  thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *
 	break;
     }
 
+    PRINT_D("Check var finished.");
     return 0;
 }
 
@@ -1136,6 +1101,7 @@ static int thinklcdml_vsync(struct fb_info *info)
 
 static int thinklcdml_pan_display(struct fb_var_screeninfo *var, struct fb_info *info)
 {
+    struct tlcdml_fb_par *par = info->par;
     struct tlcdml_irq_data *irq_data = ((struct tlcdml_drvdata*)dev_get_drvdata(info->device))->irq_data;
     unsigned long phys_address;
     int ret = 0;
@@ -1312,18 +1278,11 @@ static int __init thinklcdml_probe(struct platform_device *device)
     }
     platform_set_drvdata(device, drvdata);
 
-    /* Framebuffer setup */
-    PRINT_D("Framebuffer setup");
-    if ((ret = tlcdml_alloc_layers(device, fb_hard) < 0)) {
-	PRINT_E("Layer allocation failed.");
-	goto drv_free;
-    }
-
     /* Allocate registers */
     PRINT_D("Allocate registers");
     if (!request_mem_region(physical_regs_base, register_file_size, device->name)) {
 	PRINT_E("Request for MMIO for register file was negative.");
-	goto layers_free;
+	goto drv_free;
     }
 
     virtual_regs_base = ioremap_nocache(physical_regs_base, register_file_size);
@@ -1332,6 +1291,13 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	release_mem_region(physical_regs_base, register_file_size);
 	ret = -ENOMEM;
 	goto regs_release;
+    }
+
+    /* Framebuffer setup */
+    PRINT_D("Framebuffer setup");
+    if ((ret = tlcdml_alloc_layers(device, fb_hard) < 0)) {
+	PRINT_E("Layer allocation failed.");
+	goto regs_free;
     }
 
     tlcdml_write(TLCD_REG_MODE, TLCD_MODE);
@@ -1344,11 +1310,12 @@ static int __init thinklcdml_probe(struct platform_device *device)
 			   IRQF_DISABLED, "thinklcdml vsync",
 			   drvdata->irq_data)) < 0) {
 	PRINT_E("IRQ request failed.");
-	goto regs_free;
+	goto layers_free;
     }
+
     /* PLL */
     PRINT_D("PLL");
-    if ((ret = tlcdml_setup_pll_pixclock(device) < 0)) {
+    if ((ret = tlcdml_setup_pll_pixclock() < 0)) {
 	PRINT_E("Failerd pll pixclock setup.");
 	goto irq_free;
     }
@@ -1361,6 +1328,10 @@ irq_free:
     PRINT_D("Freing irq.");
     free_irq(TLCD_VSYNC_IRQ, drvdata->irq_data);
 
+layers_free:
+    PRINT_D("Freing layers.");
+    tlcdml_dealloc_layers(device);
+
 regs_free:
     PRINT_D("Freing regs.");
     iounmap(virtual_regs_base);
@@ -1368,10 +1339,6 @@ regs_free:
 regs_release:
     PRINT_D("Releasing regs.");
     release_mem_region(physical_regs_base, register_file_size);
-
-layers_free:
-    PRINT_D("Freing layers.");
-    tlcdml_dealloc_layers(device);
 
 drv_free:
     PRINT_D("Freing driver data.");

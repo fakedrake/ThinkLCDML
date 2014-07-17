@@ -18,15 +18,15 @@
 #define USE_CMA
 
 /// PIXCLK_PLL hardware constants
-//#define USE_PLL
+/* #define USE_PLL */
 #ifdef USE_PLL
 #define PIXCLKPLL_BASEADDR	    0x43c10000
-#define PIXCLKPLL_MMIOALLOC     0x260
+#define PIXCLKPLL_MMIOALLOC         0x260
 #define PIXCLKPLL_RESET		    0x0
 #define PIXCLKPLL_STATUS	    0x4
-#define PIXCLKPLL_GLOBMULDIV    0x200
-#define PIXCLKPLL_CLK0DIV       0x208
-#define PIXCLKPLL_LOAD          0x25c
+#define PIXCLKPLL_GLOBMULDIV        0x200
+#define PIXCLKPLL_CLK0DIV           0x208
+#define PIXCLKPLL_LOAD              0x25c
 #endif
 
 // ThinkLCD hardware constants
