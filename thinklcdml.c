@@ -32,6 +32,7 @@
 #include <linux/irq.h>
 #include <linux/platform_device.h>
 
+#define USE_CMA
 #include "thinklcdml.h"
 
 
@@ -114,14 +115,11 @@ static void __iomem * pll_virtual_regs_base;
 
 #define XY16TOREG32(x, y) ((x) << 16 | ((y) & 0xffff))
 
-/* #define TLCDML_DUMMY */
-#ifdef TLCDML_DUMMY
-#define tlcdml_read(reg) 0
-#define tlcdml_write(reg, val) do {} while(0)
-#else
 #define tlcdml_read(reg) fb_readl((u32 __iomem *)((u32)(virtual_regs_base) + (reg)))
-#define tlcdml_write(reg, val) fb_writel((val), (u32 __iomem *)((unsigned long)(virtual_regs_base) + (reg)))
-#endif
+#define tlcdml_write(reg, val) do {                                     \
+    PRINT_D("REG(0x%lx) = 0x%x", (long unsigned)(reg), (unsigned)(val));                      \
+        fb_writel((val), (u32 __iomem *)((unsigned long)(virtual_regs_base) + (reg))); \
+    } while (0)
 
 /* Printks */
 #define PRINT_E(fmt, args...)	printk(KERN_ERR     "[E] ThinkLCDML: " fmt "\n", ##args)
@@ -182,7 +180,6 @@ static struct platform_device thinklcdml_device = {
 	.release = thinklcdml_platform_release,
     }
 };
-
 
 #ifdef USE_PLL
 static inline int tlcdml_setup_pll_pixclock(void)
@@ -498,6 +495,29 @@ static __inline__ void tlcdml_dump_var(const struct fb_info *info)
     PRINT_D("vsync_len = %d", info->var.vsync_len);
 }
 
+static void tlcdml_dump_regs(void)
+{
+    PRINT_D("TLCD_REG_CONFIG = 0x%x",		 tlcdml_read(0xf0));
+    PRINT_D("TLCD_REG_MODE = 0x%x",         	 tlcdml_read(0x00) /* 0x80000000 */);
+    PRINT_D("TLCD_REG_CLKCTRL = 0x%x",    	 tlcdml_read(0x04) /* 0x00000402 */);
+    PRINT_D("TLCD_REG_BGCOLOR = 0x%x",      	 tlcdml_read(0x08) /* 0xFFFF0000 */);
+    PRINT_D("TLCD_REG_RESXY = 0x%x",        	 tlcdml_read(0x0c) /* 0x04000300 */);
+    PRINT_D("TLCD_REG_STRIDE = 0x%x",       	 tlcdml_read(0x10));
+    PRINT_D("TLCD_REG_FRONTPORCHXY = 0x%x", 	 tlcdml_read(0x14) /* 0x04200303 */);
+    PRINT_D("TLCD_REG_BLANKINGXY = 0x%x",   	 tlcdml_read(0x18) /* 0x04680306 */);
+    PRINT_D("TLCD_REG_BACKPORCHXY = 0x%x",  	 tlcdml_read(0x1c) /* 0x04F80320 */);
+    PRINT_D("TLCD_REG_CURSORXY = 0x%x",	 tlcdml_read(0x20));
+    PRINT_D("TLCD_REG_STATUS = 0x%x",	 tlcdml_read(TLCD_REG_STATUS));
+    PRINT_D("TLCD_REG_LAYER0_MODE = 0x%x",     tlcdml_read(0x30) /* 0x88ff0102 */);
+    PRINT_D("TLCD_REG_LAYER0_STARTXY = 0x%x",  tlcdml_read(0x34) /* 0x04000300 */);
+    PRINT_D("TLCD_REG_LAYER0_SIZEXY = 0x%x",   tlcdml_read(0x38));
+    PRINT_D("TLCD_REG_LAYER0_BASEADDR = 0x%x", tlcdml_read(0x3c));
+    PRINT_D("TLCD_REG_LAYER0_STRIDE = 0x%x",   tlcdml_read(0x40));
+    PRINT_D("TLCD_REG_LAYER0_RESXY = 0x%x",    tlcdml_read(0x44));
+    PRINT_D("TLCD_REG_LAYER0_SCALEX = 0x%x",   tlcdml_read(0x48));
+    PRINT_D("TLCD_REG_LAYER0_SCALEY = 0x%x",   tlcdml_read(0x4c));
+}
+
 /**
  * tlcdml_setup_color_mode - Setup info and par to fit the color mode
  */
@@ -636,7 +656,6 @@ tlcdml_add_remove_info(struct platform_device* device, const unsigned long hard_
 	goto free_palette;
     }
 
-
     return info;
 
 free_fb:			/* Jump here to just free everything. */
@@ -698,7 +717,7 @@ static int __inline__ tlcdml_alloc_layers(struct platform_device* device, const 
 	}
 
 	/* Setup registers */
-	PRINT_D("Setting up registers (virt offset: %p)", virtual_regs_base);
+	PRINT_D("Setting up registers (virt offset: 0x%p)", virtual_regs_base);
 	tlcdml_write(TLCD_REG_LAYER_SCALEY(OL(info)),  0x4000);
 	tlcdml_write(TLCD_REG_LAYER_SCALEX(OL(info)),  0x4000);
 	tlcdml_write(TLCD_REG_LAYER_BASEADDR(OL(info)), info->fix.smem_start);
@@ -1063,6 +1082,7 @@ static irqreturn_t thinklcdml_vsync_interrupt(int irq, void *ptr)
 {
     struct tlcdml_irq_data* data = (struct tlcdml_irq_data*)ptr;
 
+    PRINT_D("Vertical sync iterrupt.");
     /* clear the interrupt */
     tlcdml_write(TLCD_REG_INTERRUPT, 0);
 
@@ -1264,6 +1284,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
 
     /* DrvData */
     PRINT_D("DrvData");
+    /* TODO: Check devm_kzalloc */
     drvdata = kzalloc(sizeof(struct tlcdml_fb_par), GFP_KERNEL);
     if (!drvdata) {
 	PRINT_E("Failed to allocate driver data for %s", device->name);
@@ -1276,10 +1297,11 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	kfree(drvdata);
 	return -ENOMEM;
     }
+
     platform_set_drvdata(device, drvdata);
 
     /* Allocate registers */
-    PRINT_D("Allocate registers");
+    PRINT_D("Allocate registers (phys: 0x%x)", physical_regs_base);
     if (!request_mem_region(physical_regs_base, register_file_size, device->name)) {
 	PRINT_E("Request for MMIO for register file was negative.");
 	goto drv_free;
@@ -1300,8 +1322,6 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	goto regs_free;
     }
 
-    tlcdml_write(TLCD_REG_MODE, TLCD_MODE);
-
     /* IRQ */
     PRINT_D("IRQ");
     init_waitqueue_head(&drvdata->irq_data->irq_wait_vsync);
@@ -1320,7 +1340,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
 	goto irq_free;
     }
 
-    /* Setup Registers */
+    tlcdml_dump_regs();
     return ret;
 
     /* Cleanup */
@@ -1380,15 +1400,23 @@ static int thinklcdml_remove(struct platform_device *device)
 {
     struct tlcdml_drvdata* drvdata = platform_get_drvdata(device);
 
+    PRINT_D("Removing device..");
+    PRINT_D("PLL");
     tlcdml_release_pll_pixclock();
 
     tlcdml_write(TLCD_REG_INTERRUPT, 0);
+    PRINT_D("IRQ");
     free_irq(TLCD_VSYNC_IRQ, drvdata->irq_data);
 
+    PRINT_D("IOUNMAP 0x%p", virtual_regs_base);
     iounmap(virtual_regs_base);
+    PRINT_D("Release mem 0x%x, len: 0x%x", physical_regs_base, register_file_size);
     release_mem_region(physical_regs_base, register_file_size);
 
+    PRINT_D("Dealloc layers");
     tlcdml_dealloc_layers(device);
+
+    PRINT_D("Free drvdata");
     kfree(drvdata->irq_data);
     kfree(drvdata);
 
