@@ -100,7 +100,7 @@ static u32 default_color_mode = TLCD_MODE_ARGB8888;
 
 static u32 physical_regs_base = TLCD_PHYSICAL_BASE;
 static u32 register_file_size = TLCD_MMIOALLOC;
-static u16 max_alloc_layers;
+static u16 max_alloc_layers = 1;
 
 static void __iomem * virtual_regs_base;
 
@@ -116,9 +116,8 @@ static void __iomem * pll_virtual_regs_base;
 #define XY16TOREG32(x, y) ((x) << 16 | ((y) & 0xffff))
 
 #define tlcdml_read(reg) fb_readl((u32 __iomem *)((u32)(virtual_regs_base) + (reg)))
-#define tlcdml_write(reg, val) do {                                     \
-    PRINT_D("REG(0x%lx) = 0x%x", (long unsigned)(reg), (unsigned)(val));                      \
-        fb_writel((val), (u32 __iomem *)((unsigned long)(virtual_regs_base) + (reg))); \
+#define tlcdml_write(reg, val) do {		\
+	fb_writel((val), (u32 __iomem *)((unsigned long)(virtual_regs_base) + (reg))); \
     } while (0)
 
 /* Printks */
@@ -224,6 +223,7 @@ static inline void tlcdml_release_pll_pixclock(void)
 static inline int  tlcdml_setup_pll_pixclock(void) {return 0;}
 #endif
 
+/* Get a framebuffer size. Be warned that this will prbably not change. */
 static int __inline__ tlcdml_default_fb_size(void)
 {
     if (fb_memsize)
@@ -234,6 +234,7 @@ static int __inline__ tlcdml_default_fb_size(void)
 
 static struct fb_info* tlcdml_pop_info(struct tlcdml_drvdata* drvdata)
 {
+    PRINT_D("Popping from a stack of %d layers.", drvdata->s_top);
     if (drvdata->s_top) {
 	return drvdata->infos[--drvdata->s_top];
     }
@@ -247,6 +248,8 @@ static int tlcdml_push_info(struct fb_info* info, struct tlcdml_drvdata* drvdata
 	return 0;
 
     drvdata->infos[drvdata->s_top++] = info;
+    PRINT_D("Pushed to a stack, %d layers (max: %d).", drvdata->s_top, max_alloc_layers);
+
     return 1;
 }
 
@@ -279,17 +282,21 @@ static int tlcdml_hard_layer(struct fb_info *info, unsigned long hard_addr, unsi
 
 static int tlcdml_alloc_layer(struct fb_info *info, unsigned long size)
 {
-    info->fix.smem_len = info->screen_size = size;
+    BUG_ON(size == 0);
+
     if ((info->screen_base = dma_alloc_coherent(NULL, size, (dma_addr_t*)(&info->fix.smem_start), GFP_KERNEL)) == NULL)
 	return -ENOMEM;
 
+    info->fix.smem_len = info->screen_size = size;
     return 0;
 }
 
 static void tlcdml_dealloc_layer(struct fb_info *info)
 {
     kfree(info->pseudo_palette);
+    printk("DRNINJABATAN: tlcdml_dealloc_layer: Freing dma coherent 0x%x\n");
     dma_free_coherent(NULL, info->fix.smem_len, info->screen_base, (dma_addr_t)info->fix.smem_start);
+
 }
 #else
 static  tlcdml_alloc_layer(struct fb_info *info, unsigned long size)
@@ -481,21 +488,27 @@ static __inline__ u_long tlcdml_get_line_length(int xres_virtual, int bpp)
     return ((xres_virtual * bpp + 31) & ~31) >> 3;
 }
 
-static __inline__ void tlcdml_dump_var(const struct fb_info *info)
+
+static __inline__ void tlcdml_dump_var(struct fb_var_screeninfo* var)
 {
-    PRINT_D("FB VAR:");
-    PRINT_D("Res: %dx%d", info->var.xres, info->var.yres);
-    PRINT_D("Margins: L:%d, R:%d, U:%d, D:%d", info->var.left_margin, info->var.right_margin, info->var.upper_margin, info->var.lower_margin);
-    PRINT_D("bpp: %d", info->var.bits_per_pixel);
-    PRINT_D("offsets: R:%d, G:%d, B:%d, A:%d", info->var.red.offset, info->var.green.offset, info->var.blue.offset, info->var.transp.offset);
-    PRINT_D("PixClock: %d", info->var.pixclock);
-    PRINT_D("right_margin = %d", info->var.right_margin);
-    PRINT_D("lower_margin = %d", info->var.lower_margin);
-    PRINT_D("hsync_len = %d", info->var.hsync_len);
-    PRINT_D("vsync_len = %d", info->var.vsync_len);
+    if (var == NULL) {
+	PRINT_W("Tried to dump null screeninfo var");
+	return;
+    }
+
+    PRINT_D("Dumping var 0x%p", var);
+    PRINT_D("Res: %dx%d", var->xres, var->yres);
+    PRINT_D("Margins: L:%d, R:%d, U:%d, D:%d",
+	    var->left_margin, var->right_margin,
+	    var->upper_margin, var->lower_margin);
+    PRINT_D("bpp: %d", var->bits_per_pixel);
+    PRINT_D("offsets: R:%d, G:%d, B:%d, A:%d",
+	    var->red.offset, var->green.offset,
+	    var->blue.offset, var->transp.offset);
+    PRINT_D("PixClock: %d", var->pixclock);
 }
 
-static void tlcdml_dump_regs(void)
+static __inline__ void tlcdml_dump_regs(void)
 {
     PRINT_D("TLCD_REG_CONFIG = 0x%x",		 tlcdml_read(0xf0));
     PRINT_D("TLCD_REG_MODE = 0x%x",         	 tlcdml_read(0x00) /* 0x80000000 */);
@@ -592,6 +605,9 @@ tlcdml_add_remove_info(struct platform_device* device, const unsigned long hard_
 	info = info_to_free;
 	goto free_fb;
     }
+
+    PRINT_D("Adding layer...");
+
     if (hard_phys_addr) max_alloc_layers = 1;
 
     /* Setup framebuffer info */
@@ -614,8 +630,7 @@ tlcdml_add_remove_info(struct platform_device* device, const unsigned long hard_
 
     /* First try hard_phys_addr, if that fails fallback to normal allocation. */
     PRINT_D("First try hard_phys_addr, if that fails fallback to normal allocation.");
-    if ((hard_phys_addr &&
-	 tlcdml_hard_layer(info, hard_phys_addr, fb_size) < 0) ||
+    if ((hard_phys_addr && tlcdml_hard_layer(info, hard_phys_addr, fb_size) < 0) ||
 	(tlcdml_alloc_layer(info, fb_size) < 0)) {
 	PRINT_E("Failed to allocate framebuffer memory.");
 	goto release_fb;
@@ -623,6 +638,7 @@ tlcdml_add_remove_info(struct platform_device* device, const unsigned long hard_
 
     /* Avoid page migration. Notice that this is done even on hard
      * address.*/
+    PRINT_D("Reserving pages");
     for (page = (unsigned long)info->screen_base;
 	 page < PAGE_ALIGN((unsigned long)info->screen_base + info->screen_size);
 	 page += PAGE_SIZE)
@@ -686,6 +702,13 @@ unreserve_pg:
     } else
 	tlcdml_dealloc_layer(info);
 
+    /* Reset info values. */
+    PRINT_D("Resetting info.");
+    info->screen_base = NULL;
+    info->fix.smem_len = 0;
+    info->screen_size = 0;
+    info->fix.smem_start = 0;
+
 release_fb:
     PRINT_D("Framebuffer release.");
     framebuffer_release(info);
@@ -725,6 +748,7 @@ static int __inline__ tlcdml_alloc_layers(struct platform_device* device, const 
 		     ((OL(info) ? 0 : TLCD_CONFIG_ENABLE) | TLCD_MODE | default_color_mode ));
     } while (tlcdml_push_info(info, drvdata));
 
+    PRINT_D("Allocated %d layers", drvdata->s_top);
     return 0;
 }
 
@@ -733,6 +757,8 @@ static inline void tlcdml_dealloc_layers(struct platform_device* device)
 {
     struct tlcdml_drvdata *drvdata = platform_get_drvdata(device);
     struct fb_info *info;
+
+    PRINT_D("Deallocating %d layers.", drvdata->s_top);
 
     while((info = tlcdml_pop_info(drvdata)))
 	tlcdml_add_remove_info(device, fb_hard, info);
@@ -787,7 +813,7 @@ static int thinklcdml_set_par(struct fb_info *info)
     u8 red, green, blue;
     u32* mode = &((struct tlcdml_fb_par*)info->par)->mode;
 
-    tlcdml_dump_var(info);
+    tlcdml_dump_var(&info->var);
 
     mask        = info->var.bits_per_pixel == 8 ? ~0 : ~TLCD_MODE_LUT8;
     resx        = info->var.xres;
@@ -886,34 +912,58 @@ thinklcdml_blank(int blank_mode, struct fb_info *info)
     return 0;
 }
 
+static void tlcdml_set_var(struct fb_var_screeninfo *dst, struct fb_var_screeninfo *src)
+{
+    BUG_ON(dst == NULL || src == NULL);
 
 
+    dst->xres           = src->xres;
+    dst->yres           = src->yres;
+    dst->pixclock       = src->pixclock;
+    dst->left_margin    = src->left_margin;
+    dst->right_margin   = src->right_margin;
+    dst->upper_margin   = src->upper_margin;
+    dst->lower_margin   = src->lower_margin;
+    dst->hsync_len      = src->hsync_len;
+    dst->vsync_len      = src->vsync_len;
+}
+
+/* Check if var is good and maybe change it a bit. */
 static int  thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
     u_long line_length;
+    struct fb_var_screeninfo **iv;
 
-    PRINT_D("Res: %dx%d", info->var.xres, info->var.yres);
-    PRINT_D("Margins: L:%d, R:%d, U:%d, D:%d",
-	    info->var.left_margin, info->var.right_margin,
-	    info->var.upper_margin, info->var.lower_margin);
-    PRINT_D("bpp: %d", info->var.bits_per_pixel);
-    PRINT_D("offsets: R:%d, G:%d, B:%d, A:%d",
-	    info->var.red.offset, info->var.green.offset,
-	    info->var.blue.offset, info->var.transp.offset);
-    PRINT_D("PixClock: %d", info->var.pixclock);
+    tlcdml_dump_var(var);
 
-#ifdef DEFAULT_FBCONF
-    if ( var->xres != DEFAULT_FBCONF.xres || var->yres != DEFAULT_FBCONF.yres ) {
+#if (defined(FORCE_DEFAULT_FBCONF) && defined(DEFAULT_FBCONF))
+    /* XXX: Find a better way of dealing with the marginal
+     * resolutions. */
+    if ( 0 && (var->xres != DEFAULT_FBCONF.xres || var->yres != DEFAULT_FBCONF.yres) ) {
+	PRINT_E("Bad resolution %dx%d (will only accept default: %dx%d)",
+		var->xres, var->yres, DEFAULT_FBCONF.xres, DEFAULT_FBCONF.yres);
 	return -EINVAL;
     }
 
-    var->pixclock       = DEFAULT_FBCONF.pixclock;
-    var->left_margin    = DEFAULT_FBCONF.left_margin;
-    var->right_margin   = DEFAULT_FBCONF.right_margin;
-    var->upper_margin   = DEFAULT_FBCONF.upper_margin;
-    var->lower_margin   = DEFAULT_FBCONF.lower_margin;
-    var->hsync_len      = DEFAULT_FBCONF.hsync_len;
-    var->vsync_len      = DEFAULT_FBCONF.vsync_len;
+    tlcdml_set_var(var, &DEFAULT_FBCONF);
+#else
+    /* Search for the correct one based on the resolution. */
+    for (iv = tlcdml_screeninfos; *iv != NULL; iv++)
+	if ((*iv)->xres == var->xres && (*iv)->yres == var->yres) {
+	    tlcdml_set_var(var, *iv);
+	    break;
+	}
+
+    if (*iv == NULL) {
+	PRINT_E("Failed to find a similar resolution to %dx%d. We support:", var->xres, var->yres);
+	for (iv = tlcdml_screeninfos; *iv; iv++)
+	    PRINT_E("%dx%d", (*iv)->xres, (*iv)->yres);
+
+	return -EINVAL;
+    }
+
+    PRINT_D("Selected var from list (res %dx%d)", var->xres, var->yres);
+    tlcdml_dump_var(var);
 #endif
 
 
@@ -1275,6 +1325,47 @@ static int thinklcdml_ioctl(struct fb_info *info, unsigned int cmd, unsigned lon
     return 0;
 }
 
+static void tlcdml_free_drvdata(struct tlcdml_drvdata* drvdata)
+{
+    if (!drvdata)
+	return;
+
+    if (drvdata->irq_data)
+	kfree(drvdata->irq_data);
+
+    if (drvdata->infos)
+	kfree(drvdata->infos);
+
+    kfree(drvdata);
+}
+
+static struct tlcdml_drvdata* tlcdml_alloc_drvdata(struct platform_device* device)
+{
+    struct tlcdml_drvdata *drvdata = (struct tlcdml_drvdata*)kzalloc(sizeof(struct tlcdml_drvdata), GFP_KERNEL);
+
+    if (drvdata == NULL) {
+	PRINT_E("Failed to allocate driver data for %s", device->name);
+	return NULL;
+    }
+
+    drvdata->irq_data = kzalloc(sizeof(struct tlcdml_irq_data), GFP_KERNEL);
+    if (drvdata->irq_data == NULL) {
+	PRINT_E("Failed to allocate driver irq data for %s", device->name);
+	tlcdml_free_drvdata(drvdata);
+	return NULL;
+    }
+
+    drvdata->infos = kzalloc(sizeof(struct fb_info*) * max_alloc_layers, GFP_KERNEL);
+    if (drvdata->infos == NULL) {
+	PRINT_E("Failed to allocate %d driver infos for %s", max_alloc_layers, device->name);
+	tlcdml_free_drvdata(drvdata);
+	return NULL;
+    }
+
+    return drvdata;
+}
+
+
 static int __init thinklcdml_probe(struct platform_device *device)
 {
     int ret = 0;
@@ -1285,18 +1376,8 @@ static int __init thinklcdml_probe(struct platform_device *device)
     /* DrvData */
     PRINT_D("DrvData");
     /* TODO: Check devm_kzalloc */
-    drvdata = kzalloc(sizeof(struct tlcdml_fb_par), GFP_KERNEL);
-    if (!drvdata) {
-	PRINT_E("Failed to allocate driver data for %s", device->name);
+    if ((drvdata = tlcdml_alloc_drvdata(device)) == NULL)
 	return -ENOMEM;
-    }
-
-    drvdata->irq_data = kzalloc(sizeof(struct tlcdml_irq_data), GFP_KERNEL);
-    if (!drvdata->irq_data) {
-	PRINT_E("Failed to allocate driver irq data for %s", device->name);
-	kfree(drvdata);
-	return -ENOMEM;
-    }
 
     platform_set_drvdata(device, drvdata);
 
@@ -1304,6 +1385,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
     PRINT_D("Allocate registers (phys: 0x%x)", physical_regs_base);
     if (!request_mem_region(physical_regs_base, register_file_size, device->name)) {
 	PRINT_E("Request for MMIO for register file was negative.");
+	ret = -ENOMEM;
 	goto drv_free;
     }
 
@@ -1319,6 +1401,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
     PRINT_D("Framebuffer setup");
     if ((ret = tlcdml_alloc_layers(device, fb_hard) < 0)) {
 	PRINT_E("Layer allocation failed.");
+	ret = -ENOMEM;
 	goto regs_free;
     }
 
@@ -1330,6 +1413,7 @@ static int __init thinklcdml_probe(struct platform_device *device)
 			   IRQF_DISABLED, "thinklcdml vsync",
 			   drvdata->irq_data)) < 0) {
 	PRINT_E("IRQ request failed.");
+	ret = -ENOMEM;
 	goto layers_free;
     }
 
@@ -1337,10 +1421,10 @@ static int __init thinklcdml_probe(struct platform_device *device)
     PRINT_D("PLL");
     if ((ret = tlcdml_setup_pll_pixclock() < 0)) {
 	PRINT_E("Failerd pll pixclock setup.");
+	ret = -ENOMEM;
 	goto irq_free;
     }
 
-    tlcdml_dump_regs();
     return ret;
 
     /* Cleanup */
@@ -1361,10 +1445,7 @@ regs_release:
     release_mem_region(physical_regs_base, register_file_size);
 
 drv_free:
-    PRINT_D("Freing driver data.");
-    kfree(drvdata->irq_data);
-    kfree(drvdata);
-
+    tlcdml_free_drvdata(drvdata);
     return ret;
 }
 
