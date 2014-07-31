@@ -164,6 +164,7 @@
 #define TLCD_DEFAULT_MODE (1<<31 | 1<<22)  /* | ((TLCD_CLKCTRL & 0x2) << 7) */
 #endif
 
+
 static struct fb_var_screeninfo m640x480_60 = {
     .xres           = 640,
     .yres           = 480,
@@ -232,6 +233,15 @@ static struct fb_var_screeninfo m1024x768_60 = {
     .lower_margin   = 3,
     .hsync_len      = 136,
     .vsync_len      = 6,
+};
+
+static struct fb_var_screeninfo* tlcdml_screeninfos[] = {
+    &m1024x768_60,
+    &m1024x600_60,
+    &m800x600_60,
+    &m800x480_60,
+    &m640x480_60,
+    NULL
 };
 
 #endif
