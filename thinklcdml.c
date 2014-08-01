@@ -89,11 +89,14 @@ static struct fb_fix_screeninfo thinklcdml_fix = {
     .accel     = TLCD_ACCEL,
 };
 
+#define TLCDML_MODEDB_SIZE VESA_MODEDB_SIZE
+
 /* Pinning of the memory. */
 static unsigned long fb_hard = 0;
 static int fb_memsize = 0;
 
 static struct fb_var_screeninfo default_var;
+const static struct fb_videomode* tlcdml_modes = vesa_modes;
 
 static char* module_options = NULL;
 static u32 default_color_mode = TLCD_MODE_ARGB8888;
@@ -294,7 +297,6 @@ static int tlcdml_alloc_layer(struct fb_info *info, unsigned long size)
 static void tlcdml_dealloc_layer(struct fb_info *info)
 {
     kfree(info->pseudo_palette);
-    printk("DRNINJABATAN: tlcdml_dealloc_layer: Freing dma coherent 0x%x\n");
     dma_free_coherent(NULL, info->fix.smem_len, info->screen_base, (dma_addr_t)info->fix.smem_start);
 
 }
@@ -651,11 +653,14 @@ tlcdml_add_remove_info(struct platform_device* device, const unsigned long hard_
 	goto unreserve_pg;
     }
 
+    /* Setup modelist */
+    fb_videomode_to_modelist(tlcdml_modes, TLCDML_MODEDB_SIZE, &info->modelist);
+
     /* Setup info */
     PRINT_D("Setup info");
     if ((info->pseudo_palette = kzalloc(sizeof(u32) * TLCD_PALETTE_COLORS, GFP_KERNEL)) == NULL) {
 	PRINT_E("Failed to allocate pseudo pallete.");
-	goto free_cmap;
+	goto destroy_modelist;
     }
 
     if ((ret = thinklcdml_check_var(&default_var, info))) {
@@ -685,7 +690,10 @@ free_palette:
     PRINT_D("Freing palette.");
     kfree(info->pseudo_palette);
 
-free_cmap:
+destroy_modelist:
+    PRINT_D("Destroying fb info.");
+    fb_destroy_modelist(&info->modelist);
+
     PRINT_D("Freing cmap.");
     fb_dealloc_cmap(&info->cmap);
 
@@ -931,8 +939,10 @@ static void tlcdml_set_var(struct fb_var_screeninfo *dst, struct fb_var_screenin
 /* Check if var is good and maybe change it a bit. */
 static int  thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
 {
+
     u_long line_length;
-    struct fb_var_screeninfo **iv;
+    struct fb_videomode varfbmode;
+    const struct fb_videomode *fbmode = NULL;
 
     tlcdml_dump_var(var);
 
@@ -948,19 +958,10 @@ static int  thinklcdml_check_var(struct fb_var_screeninfo *var, struct fb_info *
     tlcdml_set_var(var, &DEFAULT_FBCONF);
 #else
     /* Search for the correct one based on the resolution. */
-    for (iv = tlcdml_screeninfos; *iv != NULL; iv++)
-	if ((*iv)->xres == var->xres && (*iv)->yres == var->yres) {
-	    tlcdml_set_var(var, *iv);
-	    break;
-	}
-
-    if (*iv == NULL) {
-	PRINT_E("Failed to find a similar resolution to %dx%d. We support:", var->xres, var->yres);
-	for (iv = tlcdml_screeninfos; *iv; iv++)
-	    PRINT_E("%dx%d", (*iv)->xres, (*iv)->yres);
-
-	return -EINVAL;
-    }
+    fb_var_to_videomode(&varfbmode, var);
+    fbmode = fb_find_nearest_mode(&varfbmode, &info->modelist);
+    if (fbmode)
+	fb_videomode_to_var(var, fbmode);
 
     PRINT_D("Selected var from list (res %dx%d)", var->xres, var->yres);
     tlcdml_dump_var(var);
