@@ -235,13 +235,4 @@ static struct fb_var_screeninfo m1024x768_60 = {
     .vsync_len      = 6,
 };
 
-static struct fb_var_screeninfo* tlcdml_screeninfos[] = {
-    &m1024x768_60,
-    &m1024x600_60,
-    &m800x600_60,
-    &m800x480_60,
-    &m640x480_60,
-    NULL
-};
-
 #endif
